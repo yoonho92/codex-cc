@@ -4,6 +4,8 @@ Codex-CC is a Codex CLI fork for trusted local channel integrations. It keeps
 the normal Codex CLI behavior, but adds a typed receive-side lane that external
 tools can use to surface messages inside an active Codex thread.
 
+Repository: <https://github.com/yoonho92/codex-cc>
+
 The distributed command is `codex-cc`. It intentionally does not overwrite the
 official `codex` command.
 

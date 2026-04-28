@@ -3,6 +3,7 @@
   A Codex CLI fork with a typed channel ingress lane for trusted local integrations.
 </p>
 <p align="center"><code>npm i -g @yoonho92/codex-cc</code><br />then run <code>codex-cc</code></p>
+<p align="center"><a href="https://github.com/yoonho92/codex-cc">github.com/yoonho92/codex-cc</a></p>
 
 ---
 

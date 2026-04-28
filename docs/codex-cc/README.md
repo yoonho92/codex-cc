@@ -5,6 +5,8 @@ local integrations. It keeps upstream Codex behavior intact while letting
 external tools append channel messages to a running Codex thread without
 pretending to type into the terminal.
 
+Repository: <https://github.com/yoonho92/codex-cc>
+
 The distributed command is `codex-cc`, so it can be installed next to the
 official `codex` CLI.
 

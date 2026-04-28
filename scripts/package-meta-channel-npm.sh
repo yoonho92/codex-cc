@@ -253,6 +253,10 @@ cat > "${WRAPPER_STAGE}/package.json" <<EOF_JSON
   "license": "Apache-2.0",
   "type": "module",
   "description": "Codex CLI with the meta-channel ingress core patch.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yoonho92/codex-cc.git"
+  },
   "codexCcVersion": "${VERSION}",
   "codexBaseVersion": "${BASE_VERSION}",
   "bin": {
@@ -283,6 +287,10 @@ cat > "${PLATFORM_STAGE}/package.json" <<EOF_JSON
   "version": "${PLATFORM_VERSION}",
   "license": "Apache-2.0",
   "description": "Native Codex meta-channel payload for ${TARGET_TAG}.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yoonho92/codex-cc.git"
+  },
   "codexCcVersion": "${VERSION}",
   "codexBaseVersion": "${BASE_VERSION}",
   "os": ["${OS_NAME}"],
