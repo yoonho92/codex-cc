@@ -37,9 +37,13 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use supports_color::Stream;
 
-const CODEX_CLI_VERSION: &str = match option_env!("CODEX_CLI_VERSION_OVERRIDE") {
+const CODEX_BASE_VERSION: &str = match option_env!("CODEX_CLI_VERSION_OVERRIDE") {
     Some(version) => version,
     None => env!("CARGO_PKG_VERSION"),
+};
+const CODEX_CLI_VERSION: &str = match option_env!("CODEX_CC_DISPLAY_VERSION") {
+    Some(version) => version,
+    None => CODEX_BASE_VERSION,
 };
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]

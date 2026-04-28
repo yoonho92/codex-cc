@@ -534,20 +534,26 @@ impl HistoryCell for UpdateAvailableHistoryCell {
                 " for installation options."
             ]
         };
+        let release_notes_url = self
+            .update_action
+            .map(UpdateAction::release_notes_url)
+            .unwrap_or("https://github.com/openai/codex/releases/latest");
+        let current_version = self
+            .update_action
+            .map(UpdateAction::current_version)
+            .unwrap_or(CODEX_CLI_VERSION);
 
         let content = text![
             line![
                 padded_emoji("✨").bold().cyan(),
                 "Update available!".bold().cyan(),
                 " ",
-                format!("{CODEX_CLI_VERSION} -> {}", self.latest_version).bold(),
+                format!("{current_version} -> {}", self.latest_version).bold(),
             ],
             update_instruction,
             "",
             "See full release notes:",
-            "https://github.com/openai/codex/releases/latest"
-                .cyan()
-                .underlined(),
+            release_notes_url.cyan().underlined(),
         ];
 
         let inner_width = content

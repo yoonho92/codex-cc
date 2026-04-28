@@ -108,7 +108,7 @@ impl UpdatePromptScreen {
         Self {
             request_frame,
             latest_version,
-            current_version: env!("CARGO_PKG_VERSION").to_string(),
+            current_version: update_action.current_version().to_string(),
             update_action,
             highlighted: UpdateSelection::UpdateNow,
             selection: None,
@@ -187,6 +187,7 @@ impl WidgetRef for &UpdatePromptScreen {
         let mut column = ColumnRenderable::new();
 
         let update_command = self.update_action.command_str();
+        let release_notes_url = self.update_action.release_notes_url();
 
         column.push("");
         column.push(Line::from(vec![
@@ -204,9 +205,7 @@ impl WidgetRef for &UpdatePromptScreen {
         column.push(
             Line::from(vec![
                 "Release notes: ".dim(),
-                "https://github.com/openai/codex/releases/latest"
-                    .dim()
-                    .underlined(),
+                release_notes_url.dim().underlined(),
             ])
             .inset(Insets::tlbr(0, 2, 0, 0)),
         );

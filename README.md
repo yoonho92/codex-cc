@@ -43,6 +43,13 @@ message.
   `preview` are not copied into model context when `modelText` is omitted.
 - `codex-cc`: separate executable name, so this fork can be installed beside
   the official `codex` CLI.
+- Split versioning: `CODEX_CC_VERSION` is the npm/update version for this fork,
+  while `CODEX_CHANNEL_BASE_VERSION` records the upstream Codex version the
+  build is based on.
+- Distribution-aware update behavior: local `codex-cc` builds suppress the
+  official Codex updater and remote announcement tips; npm-installed
+  `codex-cc` builds compare `@yoonho92/codex-cc` versions and show this fork's
+  update command instead of `@openai/codex`.
 
 ### Quickstart
 
@@ -57,6 +64,11 @@ For local builds:
 scripts/build-meta-channel-codex.sh
 scripts/package-meta-channel-npm.sh
 ```
+
+The build script injects both the upstream Codex base version and the Codex-CC
+package version, then marks the binary as the `codex-cc` distribution. The npm
+wrapper also sets `CODEX_META_CHANNEL_NPM=1` so update prompts target
+`@yoonho92/codex-cc`.
 
 ### Integration Shape
 

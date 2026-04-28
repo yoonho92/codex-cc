@@ -12,10 +12,10 @@ use serde::Serialize;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::version::CODEX_CLI_VERSION;
-
 pub fn get_upgrade_version(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    let update_action = update_action::get_update_action()?;
+    let current_version = update_action.current_version();
+    if !config.check_for_update_on_startup || is_source_build_version(current_version) {
         return None;
     }
 
@@ -30,14 +30,14 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
         // isn’t blocked by a network call. The UI reads the previously cached
         // value (if any) for this run; the next run shows the banner if needed.
         tokio::spawn(async move {
-            check_for_update(&version_file)
+            check_for_update(&version_file, update_action)
                 .await
                 .inspect_err(|e| tracing::error!("Failed to update version: {e}"))
         });
     }
 
     info.and_then(|info| {
-        if is_newer(&info.latest_version, CODEX_CLI_VERSION).unwrap_or(false) {
+        if is_newer(&info.latest_version, current_version).unwrap_or(false) {
             Some(info.latest_version)
         } else {
             None
@@ -69,6 +69,11 @@ struct HomebrewCaskInfo {
     version: String,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+struct NpmPackageInfo {
+    version: String,
+}
+
 fn version_filepath(config: &Config) -> PathBuf {
     config.codex_home.join(VERSION_FILENAME).into_path_buf()
 }
@@ -78,9 +83,19 @@ fn read_version_info(version_file: &Path) -> anyhow::Result<VersionInfo> {
     Ok(serde_json::from_str(&contents)?)
 }
 
-async fn check_for_update(version_file: &Path) -> anyhow::Result<()> {
-    let latest_version = match update_action::get_update_action() {
-        Some(UpdateAction::BrewUpgrade) => {
+async fn check_for_update(version_file: &Path, update_action: UpdateAction) -> anyhow::Result<()> {
+    let latest_version = match update_action {
+        UpdateAction::CodexCcNpmGlobalLatest => {
+            let NpmPackageInfo { version } = create_client()
+                .get(crate::distribution::CODEX_CC_NPM_REGISTRY_LATEST_URL)
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<NpmPackageInfo>()
+                .await?;
+            version
+        }
+        UpdateAction::BrewUpgrade => {
             let HomebrewCaskInfo { version } = create_client()
                 .get(HOMEBREW_CASK_API_URL)
                 .send()
@@ -90,7 +105,10 @@ async fn check_for_update(version_file: &Path) -> anyhow::Result<()> {
                 .await?;
             version
         }
-        _ => {
+        UpdateAction::NpmGlobalLatest
+        | UpdateAction::BunGlobalLatest
+        | UpdateAction::StandaloneUnix
+        | UpdateAction::StandaloneWindows => {
             let ReleaseInfo {
                 tag_name: latest_tag_name,
             } = create_client()
@@ -137,7 +155,10 @@ fn extract_version_from_latest_tag(latest_tag_name: &str) -> anyhow::Result<Stri
 /// Returns the latest version to show in a popup, if it should be shown.
 /// This respects the user's dismissal choice for the current latest version.
 pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    let update_action = update_action::get_update_action()?;
+    if !config.check_for_update_on_startup
+        || is_source_build_version(update_action.current_version())
+    {
         return None;
     }
 

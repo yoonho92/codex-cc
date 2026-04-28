@@ -27,6 +27,8 @@ if [[ "${BASE_VERSION}" == "0.0.0" ]]; then
   exit 1
 fi
 
+CC_VERSION="${CODEX_CC_VERSION:-0.1.0}"
+DISPLAY_VERSION="${BASE_VERSION} (codex-cc ${CC_VERSION})"
 PROFILE="${CODEX_CHANNEL_BUILD_PROFILE:-dist}"
 TARGET_DIR="${CARGO_TARGET_DIR:-${CODEX_CHANNEL_CARGO_TARGET_DIR:-${REPO_ROOT}-target}}"
 
@@ -76,13 +78,16 @@ case "${PROFILE}" in
     ;;
 esac
 
-echo "Building Codex with display version ${BASE_VERSION}"
+echo "Building Codex-CC ${CC_VERSION} on Codex ${BASE_VERSION}"
 echo "Target dir: ${TARGET_DIR}"
 
 (
   cd "${REPO_ROOT}/codex-rs"
   CARGO_TARGET_DIR="${TARGET_DIR}" \
     CODEX_CLI_VERSION_OVERRIDE="${BASE_VERSION}" \
+    CODEX_CC_VERSION="${CC_VERSION}" \
+    CODEX_CC_DISPLAY_VERSION="${DISPLAY_VERSION}" \
+    CODEX_DISTRIBUTION="codex-cc" \
     RUSTC="${RUSTC_BIN}" \
     "${CARGO_CMD[@]}" "${CARGO_ARGS[@]}"
 )

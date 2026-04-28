@@ -13,6 +13,16 @@ npm install -g @yoonho92/codex-cc
 codex-cc
 ```
 
+Codex-CC uses split versioning. `CODEX_CC_VERSION` is this fork's npm/update
+version. `CODEX_CHANNEL_BASE_VERSION` is the upstream Codex version the binary
+is based on. `codex-cc --version` shows both values.
+
+`codex-cc` does not run the official Codex updater. Local fork builds suppress
+official update checks and official announcement tips. npm-installed
+`codex-cc` builds check the `@yoonho92/codex-cc` package version instead and,
+when an update is available, show an update command for this fork rather than
+`@openai/codex`.
+
 ## What This Fork Adds
 
 - `thread/channel_append`: typed app-server method for appending inbound channel
@@ -115,13 +125,18 @@ Minimal MCP channel notification payload:
 Build a versioned binary and package it as `codex-cc`:
 
 ```shell
+CODEX_CC_VERSION=0.1.0 \
+CODEX_CHANNEL_BASE_VERSION=0.124.0 \
 scripts/build-meta-channel-codex.sh
 scripts/package-meta-channel-npm.sh
 ```
 
-The build script injects the upstream Codex version at compile time, so the TUI
-and `codex-cc --version` show the Codex release this fork is based on instead of
-the workspace development version `0.0.0`.
+The build script injects the Codex-CC package version and the upstream Codex
+base version at compile time. The TUI keeps showing the base Codex version for
+upstream compatibility, while npm update checks compare Codex-CC package
+versions. It also marks the binary as the `codex-cc` distribution, so official
+Codex update prompts and remote announcement tips are not shown for local fork
+builds.
 
 ## Documentation Map
 

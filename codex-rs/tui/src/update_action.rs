@@ -6,6 +6,8 @@ use codex_install_context::StandalonePlatform;
 /// Update action the CLI should perform after the TUI exits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateAction {
+    /// Update the Codex-CC fork via `npm install -g @yoonho92/codex-cc`.
+    CodexCcNpmGlobalLatest,
     /// Update via `npm install -g @openai/codex@latest`.
     NpmGlobalLatest,
     /// Update via `bun install -g @openai/codex@latest`.
@@ -19,6 +21,17 @@ pub enum UpdateAction {
 }
 
 impl UpdateAction {
+    pub fn current_version(self) -> &'static str {
+        match self {
+            UpdateAction::CodexCcNpmGlobalLatest => crate::version::CODEX_CC_VERSION,
+            UpdateAction::NpmGlobalLatest
+            | UpdateAction::BunGlobalLatest
+            | UpdateAction::BrewUpgrade
+            | UpdateAction::StandaloneUnix
+            | UpdateAction::StandaloneWindows => crate::version::CODEX_CLI_VERSION,
+        }
+    }
+
     #[cfg(any(not(debug_assertions), test))]
     pub(crate) fn from_install_context(context: &InstallContext) -> Option<Self> {
         match context {
@@ -36,6 +49,10 @@ impl UpdateAction {
     /// Returns the list of command-line arguments for invoking the update.
     pub fn command_args(self) -> (&'static str, &'static [&'static str]) {
         match self {
+            UpdateAction::CodexCcNpmGlobalLatest => (
+                "npm",
+                &["install", "-g", crate::distribution::CODEX_CC_NPM_PACKAGE],
+            ),
             UpdateAction::NpmGlobalLatest => ("npm", &["install", "-g", "@openai/codex"]),
             UpdateAction::BunGlobalLatest => ("bun", &["install", "-g", "@openai/codex"]),
             UpdateAction::BrewUpgrade => ("brew", &["upgrade", "--cask", "codex"]),
@@ -56,10 +73,27 @@ impl UpdateAction {
         shlex::try_join(std::iter::once(command).chain(args.iter().copied()))
             .unwrap_or_else(|_| format!("{command} {}", args.join(" ")))
     }
+
+    pub fn release_notes_url(self) -> &'static str {
+        match self {
+            UpdateAction::CodexCcNpmGlobalLatest => crate::distribution::CODEX_CC_RELEASE_NOTES_URL,
+            UpdateAction::NpmGlobalLatest
+            | UpdateAction::BunGlobalLatest
+            | UpdateAction::BrewUpgrade
+            | UpdateAction::StandaloneUnix
+            | UpdateAction::StandaloneWindows => "https://github.com/openai/codex/releases/latest",
+        }
+    }
 }
 
 #[cfg(not(debug_assertions))]
 pub(crate) fn get_update_action() -> Option<UpdateAction> {
+    if crate::distribution::is_codex_cc_npm_distribution() {
+        return Some(UpdateAction::CodexCcNpmGlobalLatest);
+    }
+    if crate::distribution::is_codex_cc_build() {
+        return None;
+    }
     UpdateAction::from_install_context(InstallContext::current())
 }
 
@@ -104,6 +138,22 @@ mod tests {
                 resources_dir: Some(native_release_dir.join("codex-resources")),
             }),
             Some(UpdateAction::StandaloneWindows)
+        );
+    }
+
+    #[test]
+    fn codex_cc_update_command_targets_the_fork_package() {
+        assert_eq!(
+            UpdateAction::CodexCcNpmGlobalLatest.command_args(),
+            ("npm", &["install", "-g", "@yoonho92/codex-cc"][..])
+        );
+        assert_eq!(
+            UpdateAction::CodexCcNpmGlobalLatest.current_version(),
+            crate::version::CODEX_CC_VERSION
+        );
+        assert_eq!(
+            UpdateAction::CodexCcNpmGlobalLatest.release_notes_url(),
+            "https://github.com/yoonho92/codex"
         );
     }
 
