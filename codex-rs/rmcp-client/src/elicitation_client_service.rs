@@ -19,6 +19,7 @@ use crate::logging_client_handler::LoggingClientHandler;
 use crate::rmcp_client::Elicitation;
 use crate::rmcp_client::ElicitationPauseState;
 use crate::rmcp_client::ElicitationResponse;
+use crate::rmcp_client::LoggingNotificationHandler;
 use crate::rmcp_client::SendElicitation;
 
 const MCP_PROGRESS_TOKEN_META_KEY: &str = "progressToken";
@@ -34,6 +35,7 @@ impl ElicitationClientService {
     pub(crate) fn new(
         client_info: ClientInfo,
         send_elicitation: SendElicitation,
+        logging_notification_handler: Option<LoggingNotificationHandler>,
         pause_state: ElicitationPauseState,
     ) -> Self {
         let send_elicitation = Arc::new(send_elicitation);
@@ -41,6 +43,7 @@ impl ElicitationClientService {
             handler: LoggingClientHandler::new(
                 client_info,
                 clone_send_elicitation(Arc::clone(&send_elicitation)),
+                logging_notification_handler,
             ),
             send_elicitation,
             pause_state,

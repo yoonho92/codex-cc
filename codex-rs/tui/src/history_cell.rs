@@ -66,6 +66,7 @@ use codex_protocol::protocol::McpAuthStatus;
 use codex_protocol::protocol::McpInvocation;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionConfiguredEvent;
+use codex_protocol::protocol::ToolResultPresentation;
 use codex_protocol::request_user_input::RequestUserInputAnswer;
 use codex_protocol::request_user_input::RequestUserInputQuestion;
 use codex_protocol::user_input::TextElement;
@@ -1488,6 +1489,7 @@ pub(crate) struct McpToolCallCell {
     start_time: Instant,
     duration: Option<Duration>,
     result: Option<Result<codex_protocol::mcp::CallToolResult, String>>,
+    presentation: Option<ToolResultPresentation>,
     animations_enabled: bool,
 }
 
@@ -1503,6 +1505,7 @@ impl McpToolCallCell {
             start_time: Instant::now(),
             duration: None,
             result: None,
+            presentation: None,
             animations_enabled,
         }
     }
@@ -1515,11 +1518,13 @@ impl McpToolCallCell {
         &mut self,
         duration: Duration,
         result: Result<codex_protocol::mcp::CallToolResult, String>,
+        presentation: Option<ToolResultPresentation>,
     ) -> Option<Box<dyn HistoryCell>> {
         let image_cell = try_new_completed_mcp_tool_call_with_image_output(&result)
             .map(|cell| Box::new(cell) as Box<dyn HistoryCell>);
         self.duration = Some(duration);
         self.result = Some(result);
+        self.presentation = presentation;
         image_cell
     }
 
@@ -1609,7 +1614,21 @@ impl HistoryCell for McpToolCallCell {
         // Reserve four columns for the tree prefix ("  └ "/"    ") and ensure the wrapper still has at least one cell to work with.
         let detail_wrap_width = (width as usize).saturating_sub(4).max(1);
 
-        if let Some(result) = &self.result {
+        if let Some(presentation) = &self.presentation {
+            for summary in &presentation.display.summary_lines {
+                let line = Line::from(summary.clone().dim());
+                let wrapped = adaptive_wrap_line(
+                    &line,
+                    RtOptions::new(detail_wrap_width)
+                        .initial_indent("".into())
+                        .subsequent_indent("    ".into()),
+                );
+                detail_lines.extend(wrapped.iter().map(line_to_static));
+            }
+            if presentation.display.truncated {
+                detail_lines.push(Line::from("display truncated; raw result retained".dim()));
+            }
+        } else if let Some(result) = &self.result {
             match result {
                 Ok(codex_protocol::mcp::CallToolResult { content, .. }) => {
                     if !content.is_empty() {
@@ -3829,7 +3848,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         assert!(
-            cell.complete(Duration::from_millis(1420), Ok(result))
+            cell.complete(Duration::from_millis(1420), Ok(result), None)
                 .is_none()
         );
 
@@ -3864,7 +3883,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         let extra_cell = cell
-            .complete(Duration::from_millis(25), Ok(result))
+            .complete(Duration::from_millis(25), Ok(result), None)
             .expect("expected image cell");
 
         let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -3895,7 +3914,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         let extra_cell = cell
-            .complete(Duration::from_millis(25), Ok(result))
+            .complete(Duration::from_millis(25), Ok(result), None)
             .expect("expected image cell");
 
         let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -3925,7 +3944,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         let extra_cell = cell
-            .complete(Duration::from_millis(25), Ok(result))
+            .complete(Duration::from_millis(25), Ok(result), None)
             .expect("expected image cell");
 
         let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -3949,7 +3968,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         assert!(
-            cell.complete(Duration::from_secs(2), Err("network timeout".into()))
+            cell.complete(Duration::from_secs(2), Err("network timeout".into()), None)
                 .is_none()
         );
 
@@ -3992,7 +4011,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         assert!(
-            cell.complete(Duration::from_millis(640), Ok(result))
+            cell.complete(Duration::from_millis(640), Ok(result), None)
                 .is_none()
         );
 
@@ -4027,7 +4046,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         assert!(
-            cell.complete(Duration::from_millis(1280), Ok(result))
+            cell.complete(Duration::from_millis(1280), Ok(result), None)
                 .is_none()
         );
 
@@ -4063,7 +4082,7 @@ mod tests {
             /*animations_enabled*/ true,
         );
         assert!(
-            cell.complete(Duration::from_millis(320), Ok(result))
+            cell.complete(Duration::from_millis(320), Ok(result), None)
                 .is_none()
         );
 

@@ -13,6 +13,7 @@ use codex_protocol::config_types::ServiceTier;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
+use codex_protocol::items::ChannelMessageItem;
 use codex_protocol::mcp::CallToolResult;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::PermissionProfile;
@@ -300,6 +301,45 @@ impl CodexThread {
             .record_conversation_items(turn_context.as_ref(), &items)
             .await;
         self.codex.session.flush_rollout().await?;
+        Ok(())
+    }
+
+    /// Append a trusted inbound channel message without synthesizing a user turn.
+    pub async fn append_channel_message(
+        &self,
+        item: ChannelMessageItem,
+        model_text: Option<&str>,
+    ) -> CodexResult<()> {
+        if item.channel.trim().is_empty() {
+            return Err(CodexErr::InvalidRequest(
+                "channel must not be empty".to_string(),
+            ));
+        }
+        if item.sender.trim().is_empty() {
+            return Err(CodexErr::InvalidRequest(
+                "sender must not be empty".to_string(),
+            ));
+        }
+        if item.text.trim().is_empty() {
+            return Err(CodexErr::InvalidRequest(
+                "text must not be empty".to_string(),
+            ));
+        }
+
+        self.codex.session.try_ensure_rollout_materialized().await?;
+        self.codex
+            .session
+            .send_event_raw(Event {
+                id: item.id.clone(),
+                msg: item.as_legacy_event(),
+            })
+            .await;
+        self.codex
+            .session
+            .queue_channel_message_for_next_turn(&item, model_text)
+            .await;
+        self.codex.session.flush_rollout().await?;
+        self.codex.session.maybe_start_turn_for_pending_work().await;
         Ok(())
     }
 

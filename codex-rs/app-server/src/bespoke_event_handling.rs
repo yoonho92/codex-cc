@@ -18,6 +18,7 @@ use codex_app_server_protocol::AdditionalPermissionProfile as V2AdditionalPermis
 use codex_app_server_protocol::AgentMessageDeltaNotification;
 use codex_app_server_protocol::ApplyPatchApprovalParams;
 use codex_app_server_protocol::ApplyPatchApprovalResponse;
+use codex_app_server_protocol::ChannelMessageAppendedNotification;
 use codex_app_server_protocol::CodexErrorInfo as V2CodexErrorInfo;
 use codex_app_server_protocol::CollabAgentState as V2CollabAgentStatus;
 use codex_app_server_protocol::CollabAgentTool;
@@ -243,6 +244,30 @@ pub(crate) async fn apply_bespoke_event_handling(
                         SkillsChangedNotification {},
                     ))
                     .await;
+            }
+        }
+        EventMsg::ChannelMessage(event) => {
+            if let ApiVersion::V2 = api_version {
+                let notification = ServerNotification::ChannelMessageAppended(
+                    ChannelMessageAppendedNotification {
+                        thread_id: conversation_id.to_string(),
+                        item: ThreadItem::ChannelMessage {
+                            id: event.id,
+                            channel: event.channel,
+                            sender: event.sender,
+                            sender_kind: event.sender_kind.into(),
+                            text: event.text,
+                            preview: event.preview,
+                            priority: event.priority.into(),
+                            delivery: event.delivery.into(),
+                            created_at_ms: event.created_at_ms,
+                        },
+                    },
+                );
+                if let Some(analytics_events_client) = analytics_events_client.as_ref() {
+                    analytics_events_client.track_notification(notification.clone());
+                }
+                outgoing.send_server_notification(notification).await;
             }
         }
         EventMsg::McpStartupUpdate(update) => {
@@ -4732,6 +4757,7 @@ mod tests {
             mcp_app_resource_uri: Some("ui://widget/list-resources.html".to_string()),
             duration: Duration::from_nanos(92708),
             result: Ok(result),
+            presentation: None,
         };
 
         let thread_id = ThreadId::new().to_string();
@@ -4780,6 +4806,7 @@ mod tests {
             mcp_app_resource_uri: None,
             duration: Duration::from_millis(1),
             result: Err("boom".to_string()),
+            presentation: None,
         };
 
         let thread_id = ThreadId::new().to_string();

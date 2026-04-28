@@ -143,6 +143,8 @@ use codex_app_server_protocol::ThreadArchiveResponse;
 use codex_app_server_protocol::ThreadArchivedNotification;
 use codex_app_server_protocol::ThreadBackgroundTerminalsCleanParams;
 use codex_app_server_protocol::ThreadBackgroundTerminalsCleanResponse;
+use codex_app_server_protocol::ThreadChannelAppendParams;
+use codex_app_server_protocol::ThreadChannelAppendResponse;
 use codex_app_server_protocol::ThreadClosedNotification;
 use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
@@ -315,6 +317,10 @@ use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::dynamic_tools::DynamicToolSpec as CoreDynamicToolSpec;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
+use codex_protocol::items::ChannelDelivery;
+use codex_protocol::items::ChannelMessageItem;
+use codex_protocol::items::ChannelPriority;
+use codex_protocol::items::ChannelSenderKind;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
@@ -1029,6 +1035,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadInjectItems { request_id, params } => {
                 self.thread_inject_items(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadChannelAppend { request_id, params } => {
+                self.thread_channel_append(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::TurnSteer { request_id, params } => {
@@ -7178,6 +7188,109 @@ impl CodexMessageProcessor {
                 self.send_internal_error(
                     request_id,
                     format!("failed to inject response items: {err}"),
+                )
+                .await;
+            }
+        }
+    }
+
+    async fn thread_channel_append(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadChannelAppendParams,
+    ) {
+        let (_, thread) = match self.load_thread(&params.thread_id).await {
+            Ok(value) => value,
+            Err(error) => {
+                self.outgoing.send_error(request_id, error).await;
+                return;
+            }
+        };
+
+        let channel = params.message.channel.trim().to_string();
+        if channel.is_empty() {
+            self.send_invalid_request_error(request_id, "message.channel must not be empty".into())
+                .await;
+            return;
+        }
+
+        let sender = params.message.sender.trim().to_string();
+        if sender.is_empty() {
+            self.send_invalid_request_error(request_id, "message.sender must not be empty".into())
+                .await;
+            return;
+        }
+
+        if params.message.text.trim().is_empty() {
+            self.send_invalid_request_error(request_id, "message.text must not be empty".into())
+                .await;
+            return;
+        }
+
+        let model_text = params.message.model_text;
+        let item = ChannelMessageItem {
+            id: params
+                .message
+                .id
+                .filter(|id| !id.trim().is_empty())
+                .unwrap_or_else(|| format!("channel_{}", Uuid::new_v4())),
+            channel,
+            sender,
+            sender_kind: match params.message.sender_kind {
+                codex_app_server_protocol::ChannelSenderKind::External => {
+                    ChannelSenderKind::External
+                }
+                codex_app_server_protocol::ChannelSenderKind::User => ChannelSenderKind::User,
+                codex_app_server_protocol::ChannelSenderKind::Agent => ChannelSenderKind::Agent,
+                codex_app_server_protocol::ChannelSenderKind::System => ChannelSenderKind::System,
+            },
+            text: params.message.text,
+            preview: params
+                .message
+                .preview
+                .filter(|preview| !preview.trim().is_empty()),
+            priority: match params.message.priority {
+                codex_app_server_protocol::ChannelPriority::Low => ChannelPriority::Low,
+                codex_app_server_protocol::ChannelPriority::Normal => ChannelPriority::Normal,
+                codex_app_server_protocol::ChannelPriority::High => ChannelPriority::High,
+            },
+            delivery: match params.message.delivery {
+                codex_app_server_protocol::ChannelDelivery::SurfaceOnly => {
+                    ChannelDelivery::SurfaceOnly
+                }
+                codex_app_server_protocol::ChannelDelivery::SurfaceAndQueueNextTurn => {
+                    ChannelDelivery::SurfaceAndQueueNextTurn
+                }
+            },
+            created_at_ms: params
+                .message
+                .created_at_ms
+                .unwrap_or_else(|| Utc::now().timestamp_millis()),
+        };
+
+        let item_id = item.id.clone();
+        match thread
+            .append_channel_message(item, model_text.as_deref())
+            .await
+        {
+            Ok(()) => {
+                self.outgoing
+                    .send_response(
+                        request_id,
+                        ThreadChannelAppendResponse {
+                            accepted: true,
+                            item_id,
+                        },
+                    )
+                    .await;
+            }
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to append channel message: {err}"),
                 )
                 .await;
             }

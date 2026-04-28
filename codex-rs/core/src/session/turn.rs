@@ -234,7 +234,7 @@ pub(crate) async fn run_turn(
     }
 
     maybe_prompt_and_install_mcp_dependencies(
-        sess.as_ref(),
+        &sess,
         turn_context.as_ref(),
         &cancellation_token,
         &mentioned_skills,
@@ -1494,6 +1494,7 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<String> {
         | EventMsg::TurnComplete(_)
         | EventMsg::TokenCount(_)
         | EventMsg::UserMessage(_)
+        | EventMsg::ChannelMessage(_)
         | EventMsg::AgentMessageDelta(_)
         | EventMsg::AgentReasoning(_)
         | EventMsg::AgentReasoningDelta(_)

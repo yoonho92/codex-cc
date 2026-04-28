@@ -873,6 +873,7 @@ impl Session {
                 config.codex_home.to_path_buf(),
                 codex_apps_tools_cache_key(auth),
                 tool_plugin_provenance,
+                Some(sess.mcp_logging_notification_handler()),
                 auth,
             )
             .instrument(info_span!(

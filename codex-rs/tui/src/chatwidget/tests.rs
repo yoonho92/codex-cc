@@ -33,6 +33,10 @@ pub(super) use codex_app_server_protocol::AdditionalNetworkPermissions as AppSer
 pub(super) use codex_app_server_protocol::AdditionalPermissionProfile as AppServerAdditionalPermissionProfile;
 pub(super) use codex_app_server_protocol::AppSummary;
 pub(super) use codex_app_server_protocol::AutoReviewDecisionSource as AppServerGuardianApprovalReviewDecisionSource;
+pub(super) use codex_app_server_protocol::ChannelDelivery as AppServerChannelDelivery;
+pub(super) use codex_app_server_protocol::ChannelMessageAppendedNotification;
+pub(super) use codex_app_server_protocol::ChannelPriority as AppServerChannelPriority;
+pub(super) use codex_app_server_protocol::ChannelSenderKind as AppServerChannelSenderKind;
 pub(super) use codex_app_server_protocol::CollabAgentState as AppServerCollabAgentState;
 pub(super) use codex_app_server_protocol::CollabAgentStatus as AppServerCollabAgentStatus;
 pub(super) use codex_app_server_protocol::CollabAgentTool as AppServerCollabAgentTool;

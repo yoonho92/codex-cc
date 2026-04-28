@@ -593,6 +593,7 @@ async fn emit_tool_call_end(
                 mcp_app_resource_uri: None,
                 duration,
                 result,
+                presentation: None,
             }),
         )
         .await;

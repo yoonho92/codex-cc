@@ -345,6 +345,12 @@ client_request_definitions! {
         params: v2::ThreadInjectItemsParams,
         response: v2::ThreadInjectItemsResponse,
     },
+    #[experimental("thread/channel_append")]
+    /// Append a trusted inbound channel message to the thread's non-primary surface lane.
+    ThreadChannelAppend => "thread/channel_append" {
+        params: v2::ThreadChannelAppendParams,
+        response: v2::ThreadChannelAppendResponse,
+    },
     SkillsList => "skills/list" {
         params: v2::SkillsListParams,
         response: v2::SkillsListResponse,
@@ -1025,6 +1031,8 @@ server_notification_definitions! {
     ThreadArchived => "thread/archived" (v2::ThreadArchivedNotification),
     ThreadUnarchived => "thread/unarchived" (v2::ThreadUnarchivedNotification),
     ThreadClosed => "thread/closed" (v2::ThreadClosedNotification),
+    #[experimental("thread/channel/appended")]
+    ChannelMessageAppended => "thread/channel/appended" (v2::ChannelMessageAppendedNotification),
     SkillsChanged => "skills/changed" (v2::SkillsChangedNotification),
     ThreadNameUpdated => "thread/name/updated" (v2::ThreadNameUpdatedNotification),
     ThreadTokenUsageUpdated => "thread/tokenUsage/updated" (v2::ThreadTokenUsageUpdatedNotification),

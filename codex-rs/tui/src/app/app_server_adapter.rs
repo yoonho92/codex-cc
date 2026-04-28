@@ -40,6 +40,8 @@ use codex_protocol::items::AgentMessageContent;
 #[cfg(test)]
 use codex_protocol::items::AgentMessageItem;
 #[cfg(test)]
+use codex_protocol::items::ChannelMessageItem;
+#[cfg(test)]
 use codex_protocol::items::ContextCompactionItem;
 #[cfg(test)]
 use codex_protocol::items::ImageGenerationItem;
@@ -344,6 +346,9 @@ fn server_notification_thread_target(
         ServerNotification::ThreadArchived(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::ThreadUnarchived(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::ThreadClosed(notification) => Some(notification.thread_id.as_str()),
+        ServerNotification::ChannelMessageAppended(notification) => {
+            Some(notification.thread_id.as_str())
+        }
         ServerNotification::ThreadNameUpdated(notification) => {
             Some(notification.thread_id.as_str())
         }
@@ -550,6 +555,47 @@ fn server_notification_thread_events(
             );
             Some((thread_id, events))
         }
+        ServerNotification::ChannelMessageAppended(notification) => Some((
+            ThreadId::from_string(&notification.thread_id).ok()?,
+            vec![Event {
+                id: String::new(),
+                msg: EventMsg::ChannelMessage(codex_protocol::protocol::ChannelMessageEvent {
+                    id: notification.item.id().to_string(),
+                    channel: match &notification.item {
+                        ThreadItem::ChannelMessage { channel, .. } => channel.clone(),
+                        _ => return None,
+                    },
+                    sender: match &notification.item {
+                        ThreadItem::ChannelMessage { sender, .. } => sender.clone(),
+                        _ => return None,
+                    },
+                    sender_kind: match &notification.item {
+                        ThreadItem::ChannelMessage { sender_kind, .. } => sender_kind.to_core(),
+                        _ => return None,
+                    },
+                    text: match &notification.item {
+                        ThreadItem::ChannelMessage { text, .. } => text.clone(),
+                        _ => return None,
+                    },
+                    preview: match &notification.item {
+                        ThreadItem::ChannelMessage { preview, .. } => preview.clone(),
+                        _ => return None,
+                    },
+                    priority: match &notification.item {
+                        ThreadItem::ChannelMessage { priority, .. } => priority.to_core(),
+                        _ => return None,
+                    },
+                    delivery: match &notification.item {
+                        ThreadItem::ChannelMessage { delivery, .. } => delivery.to_core(),
+                        _ => return None,
+                    },
+                    created_at_ms: match &notification.item {
+                        ThreadItem::ChannelMessage { created_at_ms, .. } => *created_at_ms,
+                        _ => return None,
+                    },
+                }),
+            }],
+        )),
         ServerNotification::ItemStarted(notification) => Some((
             ThreadId::from_string(&notification.thread_id).ok()?,
             command_execution_started_event(&notification.turn_id, &notification.item).or_else(
@@ -737,7 +783,10 @@ fn turn_snapshot_events(
             continue;
         };
         match item {
-            TurnItem::UserMessage(_) | TurnItem::Plan(_) | TurnItem::AgentMessage(_) => {
+            TurnItem::UserMessage(_)
+            | TurnItem::Plan(_)
+            | TurnItem::AgentMessage(_)
+            | TurnItem::ChannelMessage(_) => {
                 events.push(Event {
                     id: String::new(),
                     msg: EventMsg::ItemCompleted(ItemCompletedEvent {
@@ -841,6 +890,27 @@ fn thread_item_to_core(item: &ThreadItem) -> Option<TurnItem> {
                 .cloned()
                 .map(codex_app_server_protocol::UserInput::into_core)
                 .collect(),
+        })),
+        ThreadItem::ChannelMessage {
+            id,
+            channel,
+            sender,
+            sender_kind,
+            text,
+            preview,
+            priority,
+            delivery,
+            created_at_ms,
+        } => Some(TurnItem::ChannelMessage(ChannelMessageItem {
+            id: id.clone(),
+            channel: channel.clone(),
+            sender: sender.clone(),
+            sender_kind: sender_kind.to_core(),
+            text: text.clone(),
+            preview: preview.clone(),
+            priority: priority.to_core(),
+            delivery: delivery.to_core(),
+            created_at_ms: *created_at_ms,
         })),
         ThreadItem::AgentMessage {
             id,

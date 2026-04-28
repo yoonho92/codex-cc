@@ -30,6 +30,9 @@ use codex_protocol::config_types::Verbosity;
 use codex_protocol::config_types::WebSearchMode;
 use codex_protocol::config_types::WebSearchToolConfig;
 use codex_protocol::items::AgentMessageContent as CoreAgentMessageContent;
+use codex_protocol::items::ChannelDelivery as CoreChannelDelivery;
+use codex_protocol::items::ChannelPriority as CoreChannelPriority;
+use codex_protocol::items::ChannelSenderKind as CoreChannelSenderKind;
 use codex_protocol::items::TurnItem as CoreTurnItem;
 use codex_protocol::mcp::CallToolResult as CoreMcpCallToolResult;
 use codex_protocol::mcp::Resource as McpResource;
@@ -155,6 +158,36 @@ macro_rules! v2_enum_from_core {
 pub enum NonSteerableTurnKind {
     Review,
     Compact,
+}
+
+v2_enum_from_core! {
+    #[derive(Default)]
+    pub enum ChannelSenderKind from CoreChannelSenderKind {
+        #[default]
+        External,
+        User,
+        Agent,
+        System,
+    }
+}
+
+v2_enum_from_core! {
+    #[derive(Default)]
+    pub enum ChannelPriority from CoreChannelPriority {
+        Low,
+        #[default]
+        Normal,
+        High,
+    }
+}
+
+v2_enum_from_core! {
+    #[derive(Default)]
+    pub enum ChannelDelivery from CoreChannelDelivery {
+        #[default]
+        SurfaceOnly,
+        SurfaceAndQueueNextTurn,
+    }
 }
 
 /// This translation layer make sure that we expose codex error code in camel case.
@@ -5184,6 +5217,54 @@ pub struct ThreadInjectItemsParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadInjectItemsResponse {}
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadChannelMessageInput {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub id: Option<String>,
+    pub channel: String,
+    pub sender: String,
+    #[serde(default)]
+    pub sender_kind: ChannelSenderKind,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub preview: Option<String>,
+    #[serde(default)]
+    pub priority: ChannelPriority,
+    #[serde(default)]
+    pub delivery: ChannelDelivery,
+    /// Optional model-visible payload for `surfaceAndQueueNextTurn`.
+    ///
+    /// This is intentionally separate from `text`, which is the durable display
+    /// surface. When omitted, queued model work receives metadata only rather
+    /// than reusing the display text as remote instructions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub model_text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub created_at_ms: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadChannelAppendParams {
+    pub thread_id: String,
+    pub message: ThreadChannelMessageInput,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadChannelAppendResponse {
+    pub accepted: bool,
+    pub item_id: String,
+}
+
 #[derive(
     Serialize, Deserialize, Debug, Default, Clone, PartialEq, JsonSchema, TS, ExperimentalApi,
 )]
@@ -5376,6 +5457,22 @@ pub enum ThreadItem {
     UserMessage { id: String, content: Vec<UserInput> },
     #[serde(rename_all = "camelCase")]
     #[ts(rename_all = "camelCase")]
+    ChannelMessage {
+        id: String,
+        channel: String,
+        sender: String,
+        sender_kind: ChannelSenderKind,
+        text: String,
+        #[serde(default)]
+        preview: Option<String>,
+        #[serde(default)]
+        priority: ChannelPriority,
+        #[serde(default)]
+        delivery: ChannelDelivery,
+        created_at_ms: i64,
+    },
+    #[serde(rename_all = "camelCase")]
+    #[ts(rename_all = "camelCase")]
     HookPrompt {
         id: String,
         fragments: Vec<HookPromptFragment>,
@@ -5534,6 +5631,7 @@ impl ThreadItem {
     pub fn id(&self) -> &str {
         match self {
             ThreadItem::UserMessage { id, .. }
+            | ThreadItem::ChannelMessage { id, .. }
             | ThreadItem::HookPrompt { id, .. }
             | ThreadItem::AgentMessage { id, .. }
             | ThreadItem::Plan { id, .. }
@@ -5938,6 +6036,17 @@ impl From<CoreTurnItem> for ThreadItem {
                 id: user.id,
                 content: user.content.into_iter().map(UserInput::from).collect(),
             },
+            CoreTurnItem::ChannelMessage(channel) => ThreadItem::ChannelMessage {
+                id: channel.id,
+                channel: channel.channel,
+                sender: channel.sender,
+                sender_kind: channel.sender_kind.into(),
+                text: channel.text,
+                preview: channel.preview,
+                priority: channel.priority.into(),
+                delivery: channel.delivery.into(),
+                created_at_ms: channel.created_at_ms,
+            },
             CoreTurnItem::HookPrompt(hook_prompt) => ThreadItem::HookPrompt {
                 id: hook_prompt.id,
                 fragments: hook_prompt
@@ -6233,6 +6342,14 @@ pub struct ThreadUnarchivedNotification {
 #[ts(export_to = "v2/")]
 pub struct ThreadClosedNotification {
     pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ChannelMessageAppendedNotification {
+    pub thread_id: String,
+    pub item: ThreadItem,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

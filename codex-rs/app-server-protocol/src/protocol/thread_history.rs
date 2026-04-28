@@ -162,6 +162,7 @@ impl ThreadHistoryBuilder {
     pub fn handle_event(&mut self, event: &EventMsg) {
         match event {
             EventMsg::UserMessage(payload) => self.handle_user_message(payload),
+            EventMsg::ChannelMessage(payload) => self.handle_channel_message(payload),
             EventMsg::AgentMessage(payload) => self.handle_agent_message(
                 payload.message.clone(),
                 payload.phase.clone(),
@@ -282,6 +283,20 @@ impl ThreadHistoryBuilder {
         self.current_turn = Some(turn);
     }
 
+    fn handle_channel_message(&mut self, payload: &codex_protocol::protocol::ChannelMessageEvent) {
+        self.ensure_turn().items.push(ThreadItem::ChannelMessage {
+            id: payload.id.clone(),
+            channel: payload.channel.clone(),
+            sender: payload.sender.clone(),
+            sender_kind: payload.sender_kind.into(),
+            text: payload.text.clone(),
+            preview: payload.preview.clone(),
+            priority: payload.priority.into(),
+            delivery: payload.delivery.into(),
+            created_at_ms: payload.created_at_ms,
+        });
+    }
+
     fn handle_agent_message(
         &mut self,
         text: String,
@@ -353,6 +368,7 @@ impl ThreadHistoryBuilder {
                 );
             }
             codex_protocol::items::TurnItem::UserMessage(_)
+            | codex_protocol::items::TurnItem::ChannelMessage(_)
             | codex_protocol::items::TurnItem::HookPrompt(_)
             | codex_protocol::items::TurnItem::AgentMessage(_)
             | codex_protocol::items::TurnItem::Reasoning(_)
@@ -374,6 +390,7 @@ impl ThreadHistoryBuilder {
                 );
             }
             codex_protocol::items::TurnItem::UserMessage(_)
+            | codex_protocol::items::TurnItem::ChannelMessage(_)
             | codex_protocol::items::TurnItem::HookPrompt(_)
             | codex_protocol::items::TurnItem::AgentMessage(_)
             | codex_protocol::items::TurnItem::Reasoning(_)
@@ -1202,6 +1219,10 @@ mod tests {
     use codex_protocol::protocol::AgentReasoningEvent;
     use codex_protocol::protocol::AgentReasoningRawContentEvent;
     use codex_protocol::protocol::ApplyPatchApprovalRequestEvent;
+    use codex_protocol::protocol::ChannelDelivery;
+    use codex_protocol::protocol::ChannelMessageEvent;
+    use codex_protocol::protocol::ChannelPriority;
+    use codex_protocol::protocol::ChannelSenderKind;
     use codex_protocol::protocol::CodexErrorInfo;
     use codex_protocol::protocol::CompactedItem;
     use codex_protocol::protocol::DynamicToolCallResponseEvent;
@@ -1324,6 +1345,44 @@ mod tests {
                 phase: None,
                 memory_citation: None,
             }
+        );
+    }
+
+    #[test]
+    fn channel_message_without_explicit_turn_builds_surface_turn() {
+        let events = vec![EventMsg::ChannelMessage(ChannelMessageEvent {
+            id: "channel-1".into(),
+            channel: "peer-inbox".into(),
+            sender: "codex-peer".into(),
+            sender_kind: ChannelSenderKind::Agent,
+            text: "hello from peer".into(),
+            preview: Some("hello".into()),
+            priority: ChannelPriority::High,
+            delivery: ChannelDelivery::SurfaceOnly,
+            created_at_ms: 1_717_171_717_000,
+        })];
+
+        let mut builder = ThreadHistoryBuilder::new();
+        for event in &events {
+            builder.handle_event(event);
+        }
+        let turns = builder.finish();
+
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].status, TurnStatus::Completed);
+        assert_eq!(
+            turns[0].items,
+            vec![ThreadItem::ChannelMessage {
+                id: "channel-1".into(),
+                channel: "peer-inbox".into(),
+                sender: "codex-peer".into(),
+                sender_kind: crate::protocol::v2::ChannelSenderKind::Agent,
+                text: "hello from peer".into(),
+                preview: Some("hello".into()),
+                priority: crate::protocol::v2::ChannelPriority::High,
+                delivery: crate::protocol::v2::ChannelDelivery::SurfaceOnly,
+                created_at_ms: 1_717_171_717_000,
+            }]
         );
     }
 
@@ -1840,6 +1899,7 @@ mod tests {
                 mcp_app_resource_uri: None,
                 duration: Duration::from_millis(8),
                 result: Err("boom".into()),
+                presentation: None,
             }),
         ];
 
@@ -1925,6 +1985,7 @@ mod tests {
                         "ui/resourceUri": "ui://widget/lookup.html"
                     })),
                 }),
+                presentation: None,
             }),
         ];
 

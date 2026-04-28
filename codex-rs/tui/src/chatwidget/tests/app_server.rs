@@ -82,6 +82,37 @@ async fn live_app_server_user_message_item_completed_does_not_duplicate_rendered
 }
 
 #[tokio::test]
+async fn live_app_server_channel_message_notification_renders_info_cell() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    chat.handle_server_notification(
+        ServerNotification::ChannelMessageAppended(ChannelMessageAppendedNotification {
+            thread_id: "thread-1".to_string(),
+            item: AppServerThreadItem::ChannelMessage {
+                id: "channel-1".to_string(),
+                channel: "peer-inbox".to_string(),
+                sender: "codex-peer".to_string(),
+                sender_kind: AppServerChannelSenderKind::Agent,
+                text: "full raw-ish body from peer".to_string(),
+                preview: Some("hello".to_string()),
+                priority: AppServerChannelPriority::High,
+                delivery: AppServerChannelDelivery::SurfaceOnly,
+                created_at_ms: 1_717_171_717_000,
+            },
+        }),
+        /*replay_kind*/ None,
+    );
+
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1);
+    let rendered = lines_to_single_string(&cells[0]);
+    assert!(rendered.contains("[peer-inbox]"));
+    assert!(rendered.contains("codex-peer"));
+    assert!(rendered.contains("hello"));
+    assert!(!rendered.contains("full raw-ish body from peer"));
+}
+
+#[tokio::test]
 async fn live_app_server_turn_completed_clears_working_status_after_answer_item() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 

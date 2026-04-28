@@ -17,19 +17,26 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 
+use crate::rmcp_client::LoggingNotificationHandler;
 use crate::rmcp_client::SendElicitation;
 
 #[derive(Clone)]
 pub(crate) struct LoggingClientHandler {
     client_info: ClientInfo,
     send_elicitation: Arc<SendElicitation>,
+    logging_notification_handler: Option<LoggingNotificationHandler>,
 }
 
 impl LoggingClientHandler {
-    pub(crate) fn new(client_info: ClientInfo, send_elicitation: SendElicitation) -> Self {
+    pub(crate) fn new(
+        client_info: ClientInfo,
+        send_elicitation: SendElicitation,
+        logging_notification_handler: Option<LoggingNotificationHandler>,
+    ) -> Self {
         Self {
             client_info,
             send_elicitation: Arc::new(send_elicitation),
+            logging_notification_handler,
         }
     }
 }
@@ -97,6 +104,7 @@ impl ClientHandler for LoggingClientHandler {
         params: LoggingMessageNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
+        let callback_params = params.clone();
         let LoggingMessageNotificationParam {
             level,
             logger,
@@ -131,6 +139,10 @@ impl ClientHandler for LoggingClientHandler {
                     level, logger, data
                 );
             }
+        }
+
+        if let Some(handler) = self.logging_notification_handler.as_ref() {
+            handler(callback_params).await;
         }
     }
 }

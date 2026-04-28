@@ -284,6 +284,7 @@ pub(crate) fn tool_runtime_trace_event(event: &EventMsg) -> Option<ToolRuntimeTr
         | EventMsg::PlanDelta(_)
         | EventMsg::ReasoningContentDelta(_)
         | EventMsg::ReasoningRawContentDelta(_)
+        | EventMsg::ChannelMessage(_)
         | EventMsg::CollabResumeBegin(_)
         | EventMsg::CollabResumeEnd(_) => None,
     }
@@ -300,6 +301,7 @@ pub(crate) fn wrapped_protocol_event_type(event: &EventMsg) -> Option<&'static s
         EventMsg::Error(_) => Some("error"),
         EventMsg::Warning(_) => Some("warning"),
         EventMsg::ShutdownComplete => Some("shutdown_complete"),
+        EventMsg::ChannelMessage(_) => Some("channel_message"),
         EventMsg::GuardianWarning(_)
         | EventMsg::RealtimeConversationStarted(_)
         | EventMsg::RealtimeConversationRealtime(_)

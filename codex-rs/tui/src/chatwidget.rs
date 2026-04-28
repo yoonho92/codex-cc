@@ -5080,6 +5080,7 @@ impl ChatWidget {
             invocation,
             duration,
             result,
+            presentation,
             ..
         } = ev;
 
@@ -5088,7 +5089,9 @@ impl ChatWidget {
             .as_mut()
             .and_then(|cell| cell.as_any_mut().downcast_mut::<McpToolCallCell>())
         {
-            Some(cell) if cell.call_id() == call_id => cell.complete(duration, result),
+            Some(cell) if cell.call_id() == call_id => {
+                cell.complete(duration, result, presentation)
+            }
             _ => {
                 self.flush_active_cell();
                 let mut cell = history_cell::new_active_mcp_tool_call(
@@ -5096,7 +5099,7 @@ impl ChatWidget {
                     invocation,
                     self.config.animations,
                 );
-                let extra_cell = cell.complete(duration, result);
+                let extra_cell = cell.complete(duration, result, presentation);
                 self.active_cell = Some(Box::new(cell));
                 extra_cell
             }
@@ -6234,6 +6237,19 @@ impl ChatWidget {
                     }),
                 });
             }
+            ThreadItem::ChannelMessage {
+                channel,
+                sender,
+                text,
+                preview,
+                ..
+            } => {
+                let display_text = preview.as_deref().unwrap_or(text.as_str());
+                self.add_info_message(
+                    format!("[{channel}] {sender}: {display_text}"),
+                    /*hint*/ None,
+                );
+            }
             ThreadItem::Plan { text, .. } => self.on_plan_item_completed(text),
             ThreadItem::Reasoning {
                 summary, content, ..
@@ -6387,6 +6403,7 @@ impl ChatWidget {
                         }
                         (None, None) => Err("MCP tool call completed without a result".to_string()),
                     },
+                    presentation: None,
                 });
             }
             ThreadItem::WebSearch { id, query, action } => {
@@ -6559,6 +6576,13 @@ impl ChatWidget {
             }
             ServerNotification::TurnCompleted(notification) => {
                 self.handle_turn_completed_notification(notification, replay_kind);
+            }
+            ServerNotification::ChannelMessageAppended(notification) => {
+                self.handle_thread_item(
+                    notification.item,
+                    String::new(),
+                    ThreadItemRenderSource::Live,
+                );
             }
             ServerNotification::ItemStarted(notification) => {
                 self.handle_item_started_notification(notification, replay_kind.is_some());
@@ -7242,6 +7266,12 @@ impl ChatWidget {
             EventMsg::DeprecationNotice(ev) => self.on_deprecation_notice(ev),
             EventMsg::BackgroundEvent(BackgroundEventEvent { message }) => {
                 self.on_background_event(message)
+            }
+            EventMsg::ChannelMessage(ev) => {
+                self.add_info_message(
+                    format!("[{}] {}: {}", ev.channel, ev.sender, ev.text),
+                    /*hint*/ None,
+                );
             }
             EventMsg::UndoStarted(ev) => self.on_undo_started(ev),
             EventMsg::UndoCompleted(ev) => self.on_undo_completed(ev),

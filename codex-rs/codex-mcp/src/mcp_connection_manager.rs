@@ -55,6 +55,7 @@ use codex_protocol::protocol::SandboxPolicy;
 use codex_rmcp_client::ElicitationResponse;
 use codex_rmcp_client::ExecutorStdioServerLauncher;
 use codex_rmcp_client::LocalStdioServerLauncher;
+use codex_rmcp_client::LoggingNotificationHandler;
 use codex_rmcp_client::RmcpClient;
 use codex_rmcp_client::SendElicitation;
 use codex_rmcp_client::StdioServerLauncher;
@@ -70,6 +71,7 @@ use rmcp::model::Implementation;
 use rmcp::model::InitializeRequestParams;
 use rmcp::model::ListResourceTemplatesResult;
 use rmcp::model::ListResourcesResult;
+use rmcp::model::LoggingMessageNotificationParam;
 use rmcp::model::PaginatedRequestParams;
 use rmcp::model::ProtocolVersion;
 use rmcp::model::ReadResourceRequestParams;
@@ -276,6 +278,9 @@ enum CachedCodexAppsToolsLoad {
 }
 
 type ResponderMap = HashMap<(String, RequestId), oneshot::Sender<ElicitationResponse>>;
+
+pub type McpLoggingNotificationHandler =
+    Arc<dyn Fn(String, LoggingMessageNotificationParam) -> BoxFuture<'static, ()> + Send + Sync>;
 
 fn elicitation_is_rejected_by_policy(approval_policy: AskForApproval) -> bool {
     match approval_policy {
@@ -488,6 +493,7 @@ impl AsyncManagedClient {
         tool_plugin_provenance: Arc<ToolPluginProvenance>,
         runtime_environment: McpRuntimeEnvironment,
         runtime_auth_provider: Option<SharedAuthProvider>,
+        logging_notification_handler: Option<McpLoggingNotificationHandler>,
     ) -> Self {
         let tool_filter = ToolFilter::from_config(&config);
         let startup_snapshot = load_startup_cached_codex_apps_tools_snapshot(
@@ -498,6 +504,11 @@ impl AsyncManagedClient {
         let startup_tool_filter = tool_filter;
         let startup_complete = Arc::new(AtomicBool::new(false));
         let startup_complete_for_fut = Arc::clone(&startup_complete);
+        let logging_notification_handler = logging_notification_handler.map(|handler| {
+            let server_name = server_name.clone();
+            Arc::new(move |params| handler(server_name.clone(), params))
+                as LoggingNotificationHandler
+        });
         let fut = async move {
             let outcome = async {
                 if let Err(error) = validate_mcp_server_name(&server_name) {
@@ -526,6 +537,7 @@ impl AsyncManagedClient {
                         tx_event,
                         elicitation_requests,
                         codex_apps_tools_cache_context,
+                        logging_notification_handler,
                     },
                 )
                 .or_cancel(&cancel_token)
@@ -750,6 +762,7 @@ impl McpConnectionManager {
         codex_home: PathBuf,
         codex_apps_tools_cache_key: CodexAppsToolsCacheKey,
         tool_plugin_provenance: ToolPluginProvenance,
+        logging_notification_handler: Option<McpLoggingNotificationHandler>,
         auth: Option<&CodexAuth>,
     ) -> (Self, CancellationToken) {
         let cancel_token = CancellationToken::new();
@@ -810,6 +823,7 @@ impl McpConnectionManager {
                 Arc::clone(&tool_plugin_provenance),
                 runtime_environment.clone(),
                 runtime_auth_provider,
+                logging_notification_handler.clone(),
             );
             clients.insert(server_name.clone(), async_managed_client.clone());
             let tx_event = tx_event.clone();
@@ -1451,6 +1465,7 @@ async fn start_server_task(
         tx_event,
         elicitation_requests,
         codex_apps_tools_cache_context,
+        logging_notification_handler,
     } = params;
     let elicitation = elicitation_capability_for_server(&server_name);
     let params = InitializeRequestParams {
@@ -1477,7 +1492,12 @@ async fn start_server_task(
     let send_elicitation = elicitation_requests.make_sender(server_name.clone(), tx_event);
 
     let initialize_result = client
-        .initialize(params, startup_timeout, send_elicitation)
+        .initialize(
+            params,
+            startup_timeout,
+            send_elicitation,
+            logging_notification_handler,
+        )
         .await
         .map_err(StartupOutcomeError::from)?;
 
@@ -1536,6 +1556,7 @@ struct StartServerTaskParams {
     tx_event: Sender<Event>,
     elicitation_requests: ElicitationRequestManager,
     codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
+    logging_notification_handler: Option<LoggingNotificationHandler>,
 }
 
 async fn make_rmcp_client(
