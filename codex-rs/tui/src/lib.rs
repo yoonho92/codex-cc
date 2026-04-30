@@ -1054,7 +1054,7 @@ async fn run_ratatui_app(
     {
         use crate::update_prompt::UpdatePromptOutcome;
 
-        let skip_update_prompt = cli.prompt.as_ref().is_some_and(|prompt| !prompt.is_empty());
+        let skip_update_prompt = should_skip_update_prompt(&cli);
         if !skip_update_prompt {
             match update_prompt::run_update_prompt_if_needed(&mut tui, &initial_config).await? {
                 UpdatePromptOutcome::Continue => {}
@@ -1452,6 +1452,24 @@ async fn run_ratatui_app(
     session_log::log_session_end();
     // ignore error when collecting usage – report underlying error instead
     app_result
+}
+
+#[cfg(not(debug_assertions))]
+const DISABLE_UPDATE_PROMPT_ENV_VAR: &str = "CODEX_DISABLE_UPDATE_PROMPT";
+
+#[cfg(not(debug_assertions))]
+fn should_skip_update_prompt(cli: &cli::Cli) -> bool {
+    cli.prompt.as_ref().is_some_and(|prompt| !prompt.is_empty())
+        || env_flag_enabled(DISABLE_UPDATE_PROMPT_ENV_VAR)
+}
+
+#[cfg(not(debug_assertions))]
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| {
+        let value = value.to_string_lossy();
+        let normalized = value.trim().to_ascii_lowercase();
+        !matches!(normalized.as_str(), "" | "0" | "false" | "no" | "off")
+    })
 }
 
 pub(crate) async fn resolve_session_thread_id(

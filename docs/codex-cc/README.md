@@ -23,7 +23,14 @@ is based on. `codex-cc --version` shows both values.
 official update checks and official announcement tips. npm-installed
 `codex-cc` builds check the `@yoonho92/codex-cc` package version instead and,
 when an update is available, show an update command for this fork rather than
-`@openai/codex`.
+`@openai/codex`. Codex-CC stores that check in a separate
+`codex-cc-version.json` cache so upstream Codex release versions such as
+`0.125.0` cannot be compared against the Codex-CC package version such as
+`0.1.0`.
+
+Automation launchers that need a non-blocking TUI startup can set
+`CODEX_DISABLE_UPDATE_PROMPT=1`. This suppresses the interactive update modal
+for that process without changing the user's normal interactive update policy.
 
 ## What This Fork Adds
 

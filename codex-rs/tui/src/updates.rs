@@ -19,7 +19,7 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
         return None;
     }
 
-    let version_file = version_filepath(config);
+    let version_file = version_filepath(config, update_action);
     let info = read_version_info(&version_file).ok();
 
     if match &info {
@@ -55,6 +55,7 @@ struct VersionInfo {
 }
 
 const VERSION_FILENAME: &str = "version.json";
+const CODEX_CC_VERSION_FILENAME: &str = "codex-cc-version.json";
 // We use the latest version from the cask if installation is via homebrew - homebrew does not immediately pick up the latest release and can lag behind.
 const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
 const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
@@ -74,8 +75,16 @@ struct NpmPackageInfo {
     version: String,
 }
 
-fn version_filepath(config: &Config) -> PathBuf {
-    config.codex_home.join(VERSION_FILENAME).into_path_buf()
+fn version_filepath(config: &Config, update_action: UpdateAction) -> PathBuf {
+    let filename = match update_action {
+        UpdateAction::CodexCcNpmGlobalLatest => CODEX_CC_VERSION_FILENAME,
+        UpdateAction::NpmGlobalLatest
+        | UpdateAction::BunGlobalLatest
+        | UpdateAction::BrewUpgrade
+        | UpdateAction::StandaloneUnix
+        | UpdateAction::StandaloneWindows => VERSION_FILENAME,
+    };
+    config.codex_home.join(filename).into_path_buf()
 }
 
 fn read_version_info(version_file: &Path) -> anyhow::Result<VersionInfo> {
@@ -162,7 +171,7 @@ pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
         return None;
     }
 
-    let version_file = version_filepath(config);
+    let version_file = version_filepath(config, update_action);
     let latest = get_upgrade_version(config)?;
     // If the user dismissed this exact version previously, do not show the popup.
     if let Ok(info) = read_version_info(&version_file)
@@ -176,7 +185,10 @@ pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
 /// Persist a dismissal for the current latest version so we don't show
 /// the update popup again for this version.
 pub async fn dismiss_version(config: &Config, version: &str) -> anyhow::Result<()> {
-    let version_file = version_filepath(config);
+    let Some(update_action) = update_action::get_update_action() else {
+        return Ok(());
+    };
+    let version_file = version_filepath(config, update_action);
     let mut info = match read_version_info(&version_file) {
         Ok(info) => info,
         Err(_) => return Ok(()),

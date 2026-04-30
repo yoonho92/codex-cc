@@ -224,7 +224,15 @@ runtime marker to check the npm registry for `@yoonho92/codex-cc` updates and
 to display `npm install -g @yoonho92/codex-cc` as the update command. The
 comparison is `CODEX_CC_VERSION` vs the npm package version; it does not compare
 against the upstream Codex base version and does not point npm-installed
-Codex-CC users at `@openai/codex`.
+Codex-CC users at `@openai/codex`. Codex-CC stores this update cache in
+`codex-cc-version.json`, separate from upstream Codex's `version.json`, so stale
+upstream release checks cannot produce mixed prompts such as
+`0.1.0 -> 0.125.0`.
+
+Automation launchers can set `CODEX_DISABLE_UPDATE_PROMPT=1` to prevent the
+interactive update modal from blocking startup. This is intended for
+launcher-owned participant sessions, not for changing the default interactive
+user experience.
 
 ## Publish
 
