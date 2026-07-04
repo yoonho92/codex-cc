@@ -1,4 +1,5 @@
 use super::*;
+use chrono::Utc;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
 use codex_protocol::protocol::AdditionalContextEntry as CoreAdditionalContextEntry;
@@ -9,6 +10,7 @@ use codex_protocol::protocol::SubAgentSource;
 
 use crate::image_url::REMOTE_IMAGE_URL_ERROR;
 use crate::image_url::is_remote_image_url;
+use uuid::Uuid;
 
 const DIRECT_INPUT_TO_MULTI_AGENT_V2_SUBAGENT_ERROR: &str =
     "direct app-server input is not allowed for multi-agent v2 sub-agents";
@@ -177,6 +179,15 @@ impl TurnRequestProcessor {
         params: ThreadInjectItemsParams,
     ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
         self.thread_inject_items_response_inner(params)
+            .await
+            .map(|response| Some(response.into()))
+    }
+
+    pub(crate) async fn thread_channel_append(
+        &self,
+        params: ThreadChannelAppendParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.thread_channel_append_response_inner(params)
             .await
             .map(|response| Some(response.into()))
     }
@@ -825,6 +836,85 @@ impl TurnRequestProcessor {
                 err => internal_error(format!("failed to inject response items: {err}")),
             })?;
         Ok(ThreadInjectItemsResponse {})
+    }
+
+    async fn thread_channel_append_response_inner(
+        &self,
+        params: ThreadChannelAppendParams,
+    ) -> Result<ThreadChannelAppendResponse, JSONRPCErrorError> {
+        let (thread_id, thread) = self.load_thread(&params.thread_id).await?;
+        let message = params.message;
+
+        let channel = message.channel.trim().to_string();
+        if channel.is_empty() {
+            return Err(invalid_request("message.channel must not be empty"));
+        }
+
+        let sender = message.sender.trim().to_string();
+        if sender.is_empty() {
+            return Err(invalid_request("message.sender must not be empty"));
+        }
+
+        if message.text.trim().is_empty() {
+            return Err(invalid_request("message.text must not be empty"));
+        }
+
+        let id = message
+            .id
+            .filter(|id| !id.trim().is_empty())
+            .unwrap_or_else(|| format!("channel_{}", Uuid::now_v7()));
+        let item = ChannelMessage {
+            id: id.clone(),
+            channel,
+            sender,
+            sender_kind: message.sender_kind,
+            text: message.text,
+            preview: message.preview.filter(|preview| !preview.trim().is_empty()),
+            priority: message.priority,
+            delivery: message.delivery,
+            created_at_ms: message
+                .created_at_ms
+                .unwrap_or_else(|| Utc::now().timestamp_millis()),
+        };
+
+        if matches!(item.delivery, ChannelDelivery::SurfaceAndQueueNextTurn) {
+            let model_text = message
+                .model_text
+                .filter(|text| !text.trim().is_empty())
+                .unwrap_or_else(|| {
+                    format!(
+                        "Inbound channel message from {} on {}:\n{}",
+                        item.sender, item.channel, item.text
+                    )
+                });
+            thread
+                .inject_response_items(vec![ResponseItem::Message {
+                    id: None,
+                    role: "user".to_string(),
+                    content: vec![ContentItem::InputText { text: model_text }],
+                    phase: None,
+                    internal_chat_message_metadata_passthrough: None,
+                }])
+                .await
+                .map_err(|err| match err {
+                    CodexErr::InvalidRequest(message) => invalid_request(message),
+                    err => internal_error(format!("failed to inject channel message: {err}")),
+                })?;
+        }
+
+        self.outgoing
+            .send_server_notification(ServerNotification::ChannelMessageAppended(
+                ChannelMessageAppendedNotification {
+                    thread_id: thread_id.to_string(),
+                    item,
+                },
+            ))
+            .await;
+
+        Ok(ThreadChannelAppendResponse {
+            accepted: true,
+            item_id: id,
+        })
     }
 
     async fn set_app_server_client_info(

@@ -83,6 +83,7 @@ use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::SkillsExtraRootsSetParams;
 use codex_app_server_protocol::SkillsListParams;
 use codex_app_server_protocol::ThreadArchiveParams;
+use codex_app_server_protocol::ThreadChannelAppendParams;
 use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadDeleteParams;
 use codex_app_server_protocol::ThreadForkParams;
@@ -993,6 +994,15 @@ impl TestAppServer {
     ) -> anyhow::Result<i64> {
         let params = Some(serde_json::to_value(params)?);
         self.send_request("thread/inject_items", params).await
+    }
+
+    /// Send a `thread/channel_append` JSON-RPC request (v2, experimental).
+    pub async fn send_thread_channel_append_request(
+        &mut self,
+        params: ThreadChannelAppendParams,
+    ) -> anyhow::Result<i64> {
+        let params = Some(serde_json::to_value(params)?);
+        self.send_request("thread/channel_append", params).await
     }
 
     /// Send a `command/exec` JSON-RPC request (v2).

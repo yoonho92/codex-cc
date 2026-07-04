@@ -660,6 +660,12 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadInjectItemsResponse,
     },
+    #[experimental("thread/channel_append")]
+    ThreadChannelAppend => "thread/channel_append" {
+        params: v2::ThreadChannelAppendParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadChannelAppendResponse,
+    },
     SkillsList => "skills/list" {
         params: v2::SkillsListParams,
         serialization: global_shared_read("config"),
@@ -1626,6 +1632,8 @@ server_notification_definitions! {
     #[experimental("thread/settings/updated")]
     ThreadSettingsUpdated => "thread/settings/updated" (v2::ThreadSettingsUpdatedNotification),
     ThreadTokenUsageUpdated => "thread/tokenUsage/updated" (v2::ThreadTokenUsageUpdatedNotification),
+    #[experimental("thread/channel/appended")]
+    ChannelMessageAppended => "thread/channel/appended" (v2::ChannelMessageAppendedNotification),
     TurnStarted => "turn/started" (v2::TurnStartedNotification),
     HookStarted => "hook/started" (v2::HookStartedNotification),
     TurnCompleted => "turn/completed" (v2::TurnCompletedNotification),
