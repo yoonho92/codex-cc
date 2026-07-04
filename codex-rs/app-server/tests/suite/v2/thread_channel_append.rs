@@ -14,8 +14,6 @@ use codex_app_server_protocol::ThreadChannelAppendResponse;
 use codex_app_server_protocol::ThreadChannelMessageInput;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
-use codex_app_server_protocol::TurnStartParams;
-use codex_app_server_protocol::UserInput as V2UserInput;
 use core_test_support::responses;
 use pretty_assertions::assert_eq;
 use std::path::Path;
@@ -104,22 +102,6 @@ async fn thread_channel_append_emits_notification_and_can_inject_model_context()
     assert_eq!(item.delivery, ChannelDelivery::SurfaceAndQueueNextTurn);
     assert_eq!(item.created_at_ms, 1_717_171_717_000);
 
-    let turn_req = mcp
-        .send_turn_start_request(TurnStartParams {
-            thread_id: thread.id.clone(),
-            client_user_message_id: None,
-            input: vec![V2UserInput::Text {
-                text: "Continue".to_string(),
-                text_elements: Vec::new(),
-            }],
-            ..Default::default()
-        })
-        .await?;
-    timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(turn_req)),
-    )
-    .await??;
     timeout(
         DEFAULT_READ_TIMEOUT,
         mcp.read_stream_until_notification_message("turn/completed"),
@@ -130,6 +112,10 @@ async fn thread_channel_append_emits_notification_and_can_inject_model_context()
     assert!(
         model_input.contains("Model-visible peer payload"),
         "channel model_text should be injected into the next model request"
+    );
+    assert!(
+        !model_input.contains("hello from peer"),
+        "channel display text should not be copied into model context"
     );
 
     Ok(())

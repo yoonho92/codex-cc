@@ -18,6 +18,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::McpLoggingNotificationHandler;
 use crate::codex_apps::normalize_codex_apps_callable_name;
 use crate::codex_apps::normalize_codex_apps_callable_namespace;
 use crate::codex_apps::normalize_codex_apps_tool_title;
@@ -54,6 +55,7 @@ use codex_protocol::protocol::McpStartupStatus;
 use codex_protocol::protocol::McpStartupUpdateEvent;
 use codex_rmcp_client::ExecutorStdioServerLauncher;
 use codex_rmcp_client::LocalStdioServerLauncher;
+use codex_rmcp_client::LoggingNotificationHandler;
 use codex_rmcp_client::RmcpClient;
 use codex_rmcp_client::StdioServerLauncher;
 use codex_rmcp_client::ToolWithConnectorId;
@@ -277,6 +279,7 @@ struct ManagedClientStartup {
     runtime_auth_provider: Option<SharedAuthProvider>,
     client_elicitation_capability: ElicitationCapability,
     supports_openai_form_elicitation: bool,
+    logging_notification_handler: Option<McpLoggingNotificationHandler>,
     cancel_token: CancellationToken,
     startup_complete: Arc<AtomicBool>,
 }
@@ -295,6 +298,7 @@ impl ManagedClientStartup {
             runtime_auth_provider,
             client_elicitation_capability,
             supports_openai_form_elicitation,
+            logging_notification_handler,
             cancel_token,
             startup_complete,
         } = self.clone();
@@ -341,6 +345,7 @@ impl ManagedClientStartup {
                         codex_apps_tools_cache_context,
                         client_elicitation_capability,
                         supports_openai_form_elicitation,
+                        logging_notification_handler,
                     },
                 )
                 .await
@@ -403,6 +408,7 @@ impl AsyncManagedClient {
         runtime_auth_provider: Option<SharedAuthProvider>,
         client_elicitation_capability: ElicitationCapability,
         supports_openai_form_elicitation: bool,
+        logging_notification_handler: Option<McpLoggingNotificationHandler>,
     ) -> Self {
         let is_codex_apps_mcp_server = server_name == CODEX_APPS_MCP_SERVER_NAME;
         let reconnect_server_name = server_name.clone();
@@ -431,6 +437,7 @@ impl AsyncManagedClient {
             runtime_auth_provider,
             client_elicitation_capability,
             supports_openai_form_elicitation,
+            logging_notification_handler,
             cancel_token: cancel_token.clone(),
             startup_complete: Arc::clone(&startup_complete),
         });
@@ -826,6 +833,7 @@ async fn start_server_task(
         codex_apps_tools_cache_context,
         client_elicitation_capability,
         supports_openai_form_elicitation,
+        logging_notification_handler,
     } = params;
     let params = mcp_initialize_request_params(
         client_elicitation_capability,
@@ -833,9 +841,16 @@ async fn start_server_task(
     );
 
     let send_elicitation = elicitation_requests.make_sender(server_name.clone(), tx_event);
+    let logging_notification_handler =
+        bind_logging_notification_handler(logging_notification_handler, server_name.clone());
 
     let initialize_result = client
-        .initialize(params, startup_timeout, send_elicitation)
+        .initialize(
+            params,
+            startup_timeout,
+            send_elicitation,
+            logging_notification_handler,
+        )
         .await
         .map_err(StartupOutcomeError::from)?;
 
@@ -935,6 +950,23 @@ struct StartServerTaskParams {
     codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
     client_elicitation_capability: ElicitationCapability,
     supports_openai_form_elicitation: bool,
+    logging_notification_handler: Option<McpLoggingNotificationHandler>,
+}
+
+fn bind_logging_notification_handler(
+    handler: Option<McpLoggingNotificationHandler>,
+    server_name: String,
+) -> Option<LoggingNotificationHandler> {
+    handler.map(|handler| {
+        Arc::new(move |params| {
+            let handler = Arc::clone(&handler);
+            let server_name = server_name.clone();
+            async move {
+                handler(server_name, params).await;
+            }
+            .boxed()
+        }) as LoggingNotificationHandler
+    })
 }
 
 #[instrument(level = "trace", skip_all, fields(server_name = %server_name))]

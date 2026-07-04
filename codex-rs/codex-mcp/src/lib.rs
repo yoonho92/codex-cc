@@ -14,6 +14,15 @@ pub use runtime::McpRuntimeContext;
 pub use runtime::SandboxState;
 pub use tools::ToolInfo;
 
+pub type McpLoggingNotificationHandler = std::sync::Arc<
+    dyn Fn(
+            String,
+            rmcp::model::LoggingMessageNotificationParam,
+        ) -> futures::future::BoxFuture<'static, ()>
+        + Send
+        + Sync,
+>;
+
 pub use catalog::McpCatalogBuilder;
 pub use catalog::McpPluginAttribution;
 pub use catalog::McpServerConflict;
