@@ -1283,6 +1283,7 @@ async fn no_local_runtime_fails_local_stdio_but_keeps_local_http_server() {
         ToolPluginProvenance::default(),
         /*auth*/ None,
         /*elicitation_reviewer*/ None,
+        /*logging_notification_handler*/ None,
     )
     .await;
 

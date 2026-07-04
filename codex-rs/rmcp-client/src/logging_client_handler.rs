@@ -18,19 +18,26 @@ use tracing::info;
 use tracing::warn;
 
 use crate::rmcp_client::Elicitation;
+use crate::rmcp_client::LoggingNotificationHandler;
 use crate::rmcp_client::SendElicitation;
 
 #[derive(Clone)]
 pub(crate) struct LoggingClientHandler {
     client_info: ClientInfo,
     send_elicitation: Arc<SendElicitation>,
+    logging_notification_handler: Option<LoggingNotificationHandler>,
 }
 
 impl LoggingClientHandler {
-    pub(crate) fn new(client_info: ClientInfo, send_elicitation: SendElicitation) -> Self {
+    pub(crate) fn new(
+        client_info: ClientInfo,
+        send_elicitation: SendElicitation,
+        logging_notification_handler: Option<LoggingNotificationHandler>,
+    ) -> Self {
         Self {
             client_info,
             send_elicitation: Arc::new(send_elicitation),
+            logging_notification_handler,
         }
     }
 }
@@ -98,40 +105,38 @@ impl ClientHandler for LoggingClientHandler {
         params: LoggingMessageNotificationParam,
         _context: NotificationContext<RoleClient>,
     ) {
-        let LoggingMessageNotificationParam {
-            level,
-            logger,
-            data,
-        } = params;
-        let logger = logger.as_deref();
-        match level {
+        let logger = params.logger.as_deref();
+        match &params.level {
             LoggingLevel::Emergency
             | LoggingLevel::Alert
             | LoggingLevel::Critical
             | LoggingLevel::Error => {
                 error!(
                     "MCP server log message (level: {:?}, logger: {:?}, data: {})",
-                    level, logger, data
+                    params.level, logger, params.data
                 );
             }
             LoggingLevel::Warning => {
                 warn!(
                     "MCP server log message (level: {:?}, logger: {:?}, data: {})",
-                    level, logger, data
+                    params.level, logger, params.data
                 );
             }
             LoggingLevel::Notice | LoggingLevel::Info => {
                 info!(
                     "MCP server log message (level: {:?}, logger: {:?}, data: {})",
-                    level, logger, data
+                    params.level, logger, params.data
                 );
             }
             LoggingLevel::Debug => {
                 debug!(
                     "MCP server log message (level: {:?}, logger: {:?}, data: {})",
-                    level, logger, data
+                    params.level, logger, params.data
                 );
             }
+        }
+        if let Some(handler) = &self.logging_notification_handler {
+            handler(params).await;
         }
     }
 }

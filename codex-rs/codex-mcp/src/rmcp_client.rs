@@ -17,6 +17,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::McpLoggingNotificationHandler;
 use crate::codex_apps::CachedCodexAppsToolsLoad;
 use crate::codex_apps::CodexAppsToolsCacheContext;
 use crate::codex_apps::load_cached_codex_apps_tools;
@@ -53,6 +54,7 @@ use codex_protocol::mcp::McpServerInfo;
 use codex_protocol::protocol::Event;
 use codex_rmcp_client::ExecutorStdioServerLauncher;
 use codex_rmcp_client::LocalStdioServerLauncher;
+use codex_rmcp_client::LoggingNotificationHandler;
 use codex_rmcp_client::RmcpClient;
 use codex_rmcp_client::StdioServerLauncher;
 use futures::future::BoxFuture;
@@ -154,6 +156,7 @@ impl AsyncManagedClient {
         runtime_auth_provider: Option<SharedAuthProvider>,
         client_elicitation_capability: ElicitationCapability,
         supports_openai_form_elicitation: bool,
+        logging_notification_handler: Option<McpLoggingNotificationHandler>,
     ) -> Self {
         let tool_filter = server
             .configured_config()
@@ -208,6 +211,7 @@ impl AsyncManagedClient {
                         codex_apps_tools_cache_context,
                         client_elicitation_capability,
                         supports_openai_form_elicitation,
+                        logging_notification_handler,
                     },
                 )
                 .await
@@ -485,6 +489,7 @@ async fn start_server_task(
         codex_apps_tools_cache_context,
         client_elicitation_capability,
         supports_openai_form_elicitation,
+        logging_notification_handler,
     } = params;
     let params = mcp_initialize_request_params(
         client_elicitation_capability,
@@ -492,9 +497,16 @@ async fn start_server_task(
     );
 
     let send_elicitation = elicitation_requests.make_sender(server_name.clone(), tx_event);
+    let logging_notification_handler =
+        bind_logging_notification_handler(logging_notification_handler, server_name.clone());
 
     let initialize_result = client
-        .initialize(params, startup_timeout, send_elicitation)
+        .initialize(
+            params,
+            startup_timeout,
+            send_elicitation,
+            logging_notification_handler,
+        )
         .await
         .map_err(StartupOutcomeError::from)?;
 
@@ -593,6 +605,23 @@ struct StartServerTaskParams {
     codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
     client_elicitation_capability: ElicitationCapability,
     supports_openai_form_elicitation: bool,
+    logging_notification_handler: Option<McpLoggingNotificationHandler>,
+}
+
+fn bind_logging_notification_handler(
+    handler: Option<McpLoggingNotificationHandler>,
+    server_name: String,
+) -> Option<LoggingNotificationHandler> {
+    handler.map(|handler| {
+        Arc::new(move |params| {
+            let handler = Arc::clone(&handler);
+            let server_name = server_name.clone();
+            async move {
+                handler(server_name, params).await;
+            }
+            .boxed()
+        }) as LoggingNotificationHandler
+    })
 }
 
 async fn make_rmcp_client(

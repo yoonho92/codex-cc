@@ -273,3 +273,69 @@ fn guardian_decisions_map_to_elicitation_responses_without_session_state() {
         }
     );
 }
+
+#[test]
+fn mcp_channel_logging_notification_builds_queueable_message() {
+    let message = channel_message_from_mcp_logging(
+        "codex_cc2cc",
+        LoggingMessageNotificationParam {
+            level: LoggingLevel::Info,
+            logger: Some("codex_channel".to_string()),
+            data: json!({
+                "codexChannelMessage": true,
+                "id": "msg-1",
+                "channel": "cc2cc",
+                "sender": "codex-peer",
+                "senderKind": "agent",
+                "text": "surface text",
+                "modelText": "model-visible payload",
+                "priority": "high",
+                "delivery": "surfaceAndQueueNextTurn",
+                "createdAtMs": 123,
+            }),
+        },
+    )
+    .expect("marked notification should be promoted");
+
+    assert_eq!(message.id, "msg-1");
+    assert_eq!(message.channel, "cc2cc");
+    assert_eq!(message.sender, "codex-peer");
+    assert_eq!(message.sender_kind, "agent");
+    assert_eq!(message.priority, "high");
+    assert_eq!(message.created_at_ms, 123);
+    assert_eq!(message.model_text.as_deref(), Some("model-visible payload"));
+    assert!(message.queue_next_turn);
+}
+
+#[test]
+fn mcp_channel_logging_response_item_keeps_display_text_out_of_model_context() {
+    let message = channel_message_from_mcp_logging(
+        "telegram",
+        LoggingMessageNotificationParam {
+            level: LoggingLevel::Info,
+            logger: Some("codex_channel".to_string()),
+            data: json!({
+                "codexChannelMessage": true,
+                "id": "msg-2",
+                "channel": "telegram",
+                "sender": "alice",
+                "text": "display-only remote body",
+                "delivery": "surface_and_queue_next_turn",
+                "createdAtMs": 456,
+            }),
+        },
+    )
+    .expect("marked notification should be promoted");
+
+    let ResponseItem::Message { role, content, .. } = channel_message_response_item(&message)
+    else {
+        panic!("expected message response item");
+    };
+    assert_eq!(role, "developer");
+    let [ContentItem::InputText { text }] = content.as_slice() else {
+        panic!("expected one text content item");
+    };
+    assert!(text.contains("\"channel\": \"telegram\""));
+    assert!(text.contains("\"has_model_text\": false"));
+    assert!(!text.contains("display-only remote body"));
+}

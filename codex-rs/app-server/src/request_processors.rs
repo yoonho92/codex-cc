@@ -44,6 +44,8 @@ use codex_app_server_protocol::CancelLoginAccountStatus;
 use codex_app_server_protocol::ChannelDelivery;
 use codex_app_server_protocol::ChannelMessage;
 use codex_app_server_protocol::ChannelMessageAppendedNotification;
+use codex_app_server_protocol::ChannelPriority;
+use codex_app_server_protocol::ChannelSenderKind;
 use codex_app_server_protocol::ClientInfo;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::ClientResponsePayload;
