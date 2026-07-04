@@ -132,6 +132,16 @@ fn fallback_transcript_cell(item: &ThreadItem) -> Option<PlainHistoryCell> {
                 .into()
             })
             .collect::<Vec<_>>(),
+        ThreadItem::ChannelMessage {
+            channel,
+            sender,
+            text,
+            preview,
+            ..
+        } => {
+            let display_text = preview.as_deref().unwrap_or(text);
+            vec![format!("[{channel}] {sender}: {display_text}").dim().into()]
+        }
         ThreadItem::CommandExecution {
             command,
             status,

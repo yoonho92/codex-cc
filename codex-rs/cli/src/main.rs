@@ -44,6 +44,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use supports_color::Stream;
 
+const CODEX_BASE_VERSION: &str = match option_env!("CODEX_CLI_VERSION_OVERRIDE") {
+    Some(version) => version,
+    None => env!("CARGO_PKG_VERSION"),
+};
+const CODEX_CLI_VERSION: &str = match option_env!("CODEX_CC_DISPLAY_VERSION") {
+    Some(version) => version,
+    None => CODEX_BASE_VERSION,
+};
+
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
@@ -94,7 +103,7 @@ use codex_terminal_detection::TerminalName;
 #[derive(Debug, Parser)]
 #[clap(
     author,
-    version,
+    version = CODEX_CLI_VERSION,
     // If a sub‑command is given, ignore requirements of the default args.
     subcommand_negates_reqs = true,
     // The executable is sometimes invoked via a platform‑specific name like

@@ -297,14 +297,17 @@ fn mcp_channel_logging_notification_builds_queueable_message() {
     )
     .expect("marked notification should be promoted");
 
-    assert_eq!(message.id, "msg-1");
-    assert_eq!(message.channel, "cc2cc");
-    assert_eq!(message.sender, "codex-peer");
-    assert_eq!(message.sender_kind, "agent");
-    assert_eq!(message.priority, "high");
-    assert_eq!(message.created_at_ms, 123);
+    assert_eq!(message.item.id, "msg-1");
+    assert_eq!(message.item.channel, "cc2cc");
+    assert_eq!(message.item.sender, "codex-peer");
+    assert_eq!(message.item.sender_kind, ChannelSenderKind::Agent);
+    assert_eq!(message.item.priority, ChannelPriority::High);
+    assert_eq!(
+        message.item.delivery,
+        ChannelDelivery::SurfaceAndQueueNextTurn
+    );
+    assert_eq!(message.item.created_at_ms, 123);
     assert_eq!(message.model_text.as_deref(), Some("model-visible payload"));
-    assert!(message.queue_next_turn);
 }
 
 #[test]
@@ -327,7 +330,8 @@ fn mcp_channel_logging_response_item_keeps_display_text_out_of_model_context() {
     )
     .expect("marked notification should be promoted");
 
-    let ResponseItem::Message { role, content, .. } = channel_message_response_item(&message)
+    let ResponseItem::Message { role, content, .. } =
+        channel_message_response_item(&message.item, message.model_text.as_deref())
     else {
         panic!("expected message response item");
     };

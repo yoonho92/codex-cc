@@ -229,6 +229,7 @@ async fn emit_tool_call_begin(
         result: None,
         error: None,
         duration: None,
+        presentation: None,
     });
     session.emit_turn_item_started(turn, &item).await;
 }
@@ -270,6 +271,7 @@ async fn emit_tool_call_end(
         result,
         error,
         duration: Some(duration),
+        presentation: None,
     });
     session.emit_turn_item_completed(turn, item).await;
 }

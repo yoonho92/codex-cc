@@ -395,7 +395,7 @@ fn structured_tool_cell_renders_raw_plain_text_without_prefix_or_style() {
         /*animations_enabled*/ false,
     );
     assert!(
-        cell.complete(Duration::from_millis(1), Ok(result))
+        cell.complete(Duration::from_millis(1), Ok(result), None)
             .is_none()
     );
 
@@ -427,6 +427,7 @@ fn raw_mode_toggle_transcript_snapshot() {
                     structured_content: None,
                     meta: None,
                 }),
+                None,
             )
             .is_none()
     );
@@ -1258,7 +1259,7 @@ fn completed_mcp_tool_call_success_snapshot() {
         /*animations_enabled*/ true,
     );
     assert!(
-        cell.complete(Duration::from_millis(1420), Ok(result))
+        cell.complete(Duration::from_millis(1420), Ok(result), None)
             .is_none()
     );
 
@@ -1293,7 +1294,7 @@ fn completed_mcp_tool_call_image_after_text_returns_extra_cell() {
         /*animations_enabled*/ true,
     );
     let extra_cell = cell
-        .complete(Duration::from_millis(25), Ok(result))
+        .complete(Duration::from_millis(25), Ok(result), None)
         .expect("expected image cell");
 
     let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -1324,7 +1325,7 @@ fn completed_mcp_tool_call_accepts_data_url_image_blocks() {
         /*animations_enabled*/ true,
     );
     let extra_cell = cell
-        .complete(Duration::from_millis(25), Ok(result))
+        .complete(Duration::from_millis(25), Ok(result), None)
         .expect("expected image cell");
 
     let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -1354,7 +1355,7 @@ fn completed_mcp_tool_call_skips_invalid_image_blocks() {
         /*animations_enabled*/ true,
     );
     let extra_cell = cell
-        .complete(Duration::from_millis(25), Ok(result))
+        .complete(Duration::from_millis(25), Ok(result), None)
         .expect("expected image cell");
 
     let rendered = render_lines(&extra_cell.display_lines(/*width*/ 80));
@@ -1378,7 +1379,7 @@ fn completed_mcp_tool_call_error_snapshot() {
         /*animations_enabled*/ true,
     );
     assert!(
-        cell.complete(Duration::from_secs(2), Err("network timeout".into()))
+        cell.complete(Duration::from_secs(2), Err("network timeout".into()), None)
             .is_none()
     );
 
@@ -1421,7 +1422,7 @@ fn completed_mcp_tool_call_multiple_outputs_snapshot() {
         /*animations_enabled*/ true,
     );
     assert!(
-        cell.complete(Duration::from_millis(640), Ok(result))
+        cell.complete(Duration::from_millis(640), Ok(result), None)
             .is_none()
     );
 
@@ -1456,7 +1457,7 @@ fn completed_mcp_tool_call_wrapped_outputs_snapshot() {
         /*animations_enabled*/ true,
     );
     assert!(
-        cell.complete(Duration::from_millis(1280), Ok(result))
+        cell.complete(Duration::from_millis(1280), Ok(result), None)
             .is_none()
     );
 
@@ -1492,7 +1493,7 @@ fn completed_mcp_tool_call_multiple_outputs_inline_snapshot() {
         /*animations_enabled*/ true,
     );
     assert!(
-        cell.complete(Duration::from_millis(320), Ok(result))
+        cell.complete(Duration::from_millis(320), Ok(result), None)
             .is_none()
     );
 

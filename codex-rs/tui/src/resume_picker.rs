@@ -795,6 +795,19 @@ async fn load_transcript_preview(
                 speaker: TranscriptPreviewSpeaker::Assistant,
                 text: parse_assistant_markdown(text, cwd).visible_markdown,
             }),
+            ThreadItem::ChannelMessage {
+                channel,
+                sender,
+                text,
+                preview,
+                ..
+            } => Some(TranscriptPreviewLine {
+                speaker: TranscriptPreviewSpeaker::Assistant,
+                text: format!(
+                    "[{channel}] {sender}: {}",
+                    preview.as_deref().unwrap_or(text)
+                ),
+            }),
             _ => None,
         })
         .flat_map(|line| {

@@ -8,6 +8,7 @@ use crate::models::WebSearchAction;
 use crate::protocol::AgentMessageEvent;
 use crate::protocol::AgentReasoningEvent;
 use crate::protocol::AgentReasoningRawContentEvent;
+use crate::protocol::ChannelMessageEvent;
 use crate::protocol::ContextCompactedEvent;
 use crate::protocol::EventMsg;
 use crate::protocol::FileChange;
@@ -18,6 +19,7 @@ use crate::protocol::McpToolCallEndEvent;
 use crate::protocol::PatchApplyBeginEvent;
 use crate::protocol::PatchApplyEndEvent;
 use crate::protocol::PatchApplyStatus;
+use crate::protocol::ToolResultPresentation;
 use crate::protocol::UserMessageEvent;
 use crate::protocol::ViewImageToolCallEvent;
 use crate::protocol::WebSearchEndEvent;
@@ -43,6 +45,7 @@ pub enum TurnItem {
     UserMessage(UserMessageItem),
     HookPrompt(HookPromptItem),
     AgentMessage(AgentMessageItem),
+    ChannelMessage(ChannelMessageItem),
     Plan(PlanItem),
     Reasoning(ReasoningItem),
     WebSearch(WebSearchItem),
@@ -61,6 +64,55 @@ pub struct UserMessageItem {
     #[ts(optional)]
     pub client_id: Option<String>,
     pub content: Vec<UserInput>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelSenderKind {
+    #[default]
+    External,
+    User,
+    Agent,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelPriority {
+    Low,
+    #[default]
+    Normal,
+    High,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelDelivery {
+    #[default]
+    SurfaceOnly,
+    SurfaceAndQueueNextTurn,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ChannelMessageItem {
+    pub id: String,
+    pub channel: String,
+    pub sender: String,
+    pub sender_kind: ChannelSenderKind,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub preview: Option<String>,
+    #[serde(default)]
+    pub priority: ChannelPriority,
+    #[serde(default)]
+    pub delivery: ChannelDelivery,
+    pub created_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
@@ -208,6 +260,9 @@ pub struct McpToolCallItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string", optional)]
     pub duration: Option<Duration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presentation: Option<ToolResultPresentation>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
@@ -474,6 +529,22 @@ impl AgentMessageItem {
     }
 }
 
+impl ChannelMessageItem {
+    pub fn as_legacy_event(&self) -> EventMsg {
+        EventMsg::ChannelMessage(ChannelMessageEvent {
+            id: self.id.clone(),
+            channel: self.channel.clone(),
+            sender: self.sender.clone(),
+            sender_kind: self.sender_kind,
+            text: self.text.clone(),
+            preview: self.preview.clone(),
+            priority: self.priority,
+            delivery: self.delivery,
+            created_at_ms: self.created_at_ms,
+        })
+    }
+}
+
 impl ReasoningItem {
     pub fn as_legacy_events(&self, show_raw_agent_reasoning: bool) -> Vec<EventMsg> {
         let mut events = Vec::new();
@@ -579,6 +650,7 @@ impl McpToolCallItem {
             plugin_id: self.plugin_id.clone(),
             duration: self.duration?,
             result,
+            presentation: self.presentation.clone(),
         }))
     }
 }
@@ -589,6 +661,7 @@ impl TurnItem {
             TurnItem::UserMessage(item) => item.id.clone(),
             TurnItem::HookPrompt(item) => item.id.clone(),
             TurnItem::AgentMessage(item) => item.id.clone(),
+            TurnItem::ChannelMessage(item) => item.id.clone(),
             TurnItem::Plan(item) => item.id.clone(),
             TurnItem::Reasoning(item) => item.id.clone(),
             TurnItem::WebSearch(item) => item.id.clone(),
@@ -606,6 +679,7 @@ impl TurnItem {
             TurnItem::UserMessage(item) => vec![item.as_legacy_event()],
             TurnItem::HookPrompt(_) => Vec::new(),
             TurnItem::AgentMessage(item) => item.as_legacy_events(),
+            TurnItem::ChannelMessage(item) => vec![item.as_legacy_event()],
             TurnItem::Plan(_) => Vec::new(),
             TurnItem::WebSearch(item) => vec![item.as_legacy_event()],
             TurnItem::ImageView(item) => {

@@ -388,6 +388,7 @@ impl TurnToolCounts {
             ThreadItem::WebSearch { .. } => self.web_search += 1,
             ThreadItem::ImageGeneration { .. } => self.image_generation += 1,
             ThreadItem::UserMessage { .. }
+            | ThreadItem::ChannelMessage { .. }
             | ThreadItem::HookPrompt { .. }
             | ThreadItem::AgentMessage { .. }
             | ThreadItem::Plan { .. }
@@ -1690,6 +1691,7 @@ fn tracked_tool_item_id(item: &ThreadItem) -> Option<&str> {
         | ThreadItem::WebSearch { id, .. }
         | ThreadItem::ImageGeneration { id, .. } => Some(id),
         ThreadItem::UserMessage { .. }
+        | ThreadItem::ChannelMessage { .. }
         | ThreadItem::HookPrompt { .. }
         | ThreadItem::AgentMessage { .. }
         | ThreadItem::Plan { .. }

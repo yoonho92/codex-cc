@@ -13,6 +13,7 @@ use crate::thread_status::ThreadWatchActiveGuard;
 use crate::thread_status::ThreadWatchManager;
 use codex_app_server_protocol::AccountRateLimitsUpdatedNotification;
 use codex_app_server_protocol::AdditionalPermissionProfile as V2AdditionalPermissionProfile;
+use codex_app_server_protocol::ChannelMessageAppendedNotification;
 use codex_app_server_protocol::CodexErrorInfo as V2CodexErrorInfo;
 use codex_app_server_protocol::CommandAction as V2ParsedCommand;
 use codex_app_server_protocol::CommandExecutionApprovalDecision;
@@ -198,6 +199,24 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
+        }
+        EventMsg::ChannelMessage(event) => {
+            let notification =
+                ServerNotification::ChannelMessageAppended(ChannelMessageAppendedNotification {
+                    thread_id: conversation_id.to_string(),
+                    item: codex_app_server_protocol::ChannelMessage {
+                        id: event.id,
+                        channel: event.channel,
+                        sender: event.sender,
+                        sender_kind: event.sender_kind.into(),
+                        text: event.text,
+                        preview: event.preview,
+                        priority: event.priority.into(),
+                        delivery: event.delivery.into(),
+                        created_at_ms: event.created_at_ms,
+                    },
+                });
+            outgoing.send_server_notification(notification).await;
         }
         EventMsg::McpStartupUpdate(update) => {
             let (status, error) = match update.status {

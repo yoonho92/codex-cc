@@ -4130,6 +4130,7 @@ async fn turn_event_counts_completed_tool_items() {
         result: None,
         error: None,
         duration_ms,
+        presentation: None,
     };
     reducer
         .ingest(

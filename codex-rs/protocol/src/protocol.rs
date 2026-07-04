@@ -29,6 +29,9 @@ use crate::dynamic_tools::DynamicToolCallOutputContentItem;
 use crate::dynamic_tools::DynamicToolCallRequest;
 use crate::dynamic_tools::DynamicToolResponse;
 use crate::dynamic_tools::DynamicToolSpec;
+pub use crate::items::ChannelDelivery;
+pub use crate::items::ChannelPriority;
+pub use crate::items::ChannelSenderKind;
 use crate::items::TurnItem;
 use crate::mcp::CallToolResult;
 use crate::mcp::RequestId;
@@ -1296,6 +1299,9 @@ pub enum EventMsg {
     /// User/system input message (what was sent to the model)
     UserMessage(UserMessageEvent),
 
+    /// Inbound channel message appended outside the primary user-turn lane.
+    ChannelMessage(ChannelMessageEvent),
+
     /// Reasoning event from agent.
     AgentReasoning(AgentReasoningEvent),
 
@@ -2307,6 +2313,22 @@ pub struct UserMessageEvent {
     pub text_elements: Vec<crate::user_input::TextElement>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelMessageEvent {
+    pub id: String,
+    pub channel: String,
+    pub sender: String,
+    pub sender_kind: ChannelSenderKind,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub preview: Option<String>,
+    pub priority: ChannelPriority,
+    pub delivery: ChannelDelivery,
+    pub created_at_ms: i64,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 pub struct AgentReasoningEvent {
     pub text: String,
@@ -2376,6 +2398,53 @@ pub struct McpToolCallEndEvent {
     pub duration: Duration,
     /// Result of the tool call. Note this could be an error.
     pub result: Result<CallToolResult, String>,
+    /// Host-owned presentation metadata for human-facing clients.
+    ///
+    /// This is intentionally separate from `result`: MCP payload/model context
+    /// semantics remain in `CallToolResult`; UI clients may render this compact
+    /// presentation and keep the raw result available for audit/debug.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presentation: Option<ToolResultPresentation>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ToolResultPresentation {
+    pub version: u32,
+    pub display: ToolResultDisplay,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub raw: Option<ToolResultRawRef>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ToolResultDisplay {
+    pub status: String,
+    pub title: String,
+    pub summary_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub item_count: Option<u64>,
+    pub truncated: bool,
+    pub severity: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ToolResultRawRef {
+    pub raw_ref: String,
+    pub byte_len: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sha256: Option<String>,
+    pub mime: String,
+    pub redaction: String,
+    pub retention: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS, PartialEq)]
@@ -5048,6 +5117,7 @@ mod tests {
                 result: None,
                 error: None,
                 duration: None,
+                presentation: None,
             }),
         };
 
@@ -5164,6 +5234,7 @@ mod tests {
                 }),
                 error: None,
                 duration: Some(Duration::from_millis(42)),
+                presentation: None,
             }),
         };
 

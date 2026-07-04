@@ -135,6 +135,16 @@ impl AgentStatusThreadPreview {
 fn activity_summary(item: &ThreadItem) -> Option<String> {
     let summary = match item {
         ThreadItem::AgentMessage { text, .. } | ThreadItem::Plan { text, .. } => text,
+        ThreadItem::ChannelMessage {
+            channel,
+            sender,
+            text,
+            preview,
+            ..
+        } => {
+            let display_text = preview.as_deref().unwrap_or(text);
+            return bounded_summary(&format!("[{channel}] {sender}: {display_text}"));
+        }
         ThreadItem::Reasoning { summary, .. } => summary.last()?,
         ThreadItem::CommandExecution { command, .. } => {
             let command = truncate_text(

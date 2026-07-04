@@ -96,6 +96,7 @@ mod tests {
                 })),
                 error: None,
                 duration_ms: Some(8),
+                presentation: None,
             },
             ThreadItem::ImageGeneration {
                 id: "ig-1".to_string(),
@@ -136,6 +137,7 @@ mod tests {
                 result: Some(Box::new(redacted_mcp_tool_call_result())),
                 error: None,
                 duration_ms: Some(8),
+                presentation: None,
             }
         );
     }
@@ -156,6 +158,7 @@ mod tests {
                 message: "secret error".to_string(),
             }),
             duration_ms: Some(8),
+            presentation: None,
         }]);
 
         redact_thread_resume_payloads(&mut thread.turns);
@@ -176,6 +179,7 @@ mod tests {
                     message: REDACTED_PAYLOAD.to_string(),
                 }),
                 duration_ms: Some(8),
+                presentation: None,
             }
         );
     }

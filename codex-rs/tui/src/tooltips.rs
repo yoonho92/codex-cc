@@ -137,11 +137,17 @@ pub(crate) mod announcement {
 
     /// Prewarm the cache of the announcement tip.
     pub(crate) fn prewarm() {
+        if crate::distribution::is_codex_cc_build() {
+            return;
+        }
         let _ = thread::spawn(|| ANNOUNCEMENT_TIP.get_or_init(init_announcement_tip_in_thread));
     }
 
     /// Fetch the announcement tip, return None if the prewarm is not done yet.
     pub(crate) fn fetch_announcement_tip(plan: Option<PlanType>) -> Option<String> {
+        if crate::distribution::is_codex_cc_build() {
+            return None;
+        }
         ANNOUNCEMENT_TIP
             .get()
             .cloned()
