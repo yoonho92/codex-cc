@@ -108,6 +108,19 @@ impl ChatWidget {
                     from_replay,
                 );
             }
+            ThreadItem::ChannelMessage {
+                channel,
+                sender,
+                text,
+                preview,
+                ..
+            } => {
+                let display_text = preview.as_deref().unwrap_or(&text);
+                self.add_info_message(
+                    format!("[{channel}] {sender}: {display_text}"),
+                    /*hint*/ None,
+                );
+            }
             ThreadItem::Plan { text, .. } => self.on_plan_item_completed(text),
             ThreadItem::Reasoning {
                 summary, content, ..

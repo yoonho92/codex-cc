@@ -361,6 +361,7 @@ pub(crate) fn tool_runtime_trace_event(event: &EventMsg) -> Option<ToolRuntimeTr
         | EventMsg::TokenCount(_)
         | EventMsg::AgentMessage(_)
         | EventMsg::UserMessage(_)
+        | EventMsg::ChannelMessage(_)
         | EventMsg::AgentReasoning(_)
         | EventMsg::AgentReasoningRawContent(_)
         | EventMsg::AgentReasoningSectionBreak(_)
@@ -418,6 +419,7 @@ pub(crate) fn wrapped_protocol_event_type(event: &EventMsg) -> Option<&'static s
         EventMsg::Error(_) => Some("error"),
         EventMsg::Warning(_) => Some("warning"),
         EventMsg::ShutdownComplete => Some("shutdown_complete"),
+        EventMsg::ChannelMessage(_) => Some("channel_message"),
         EventMsg::GuardianWarning(_)
         | EventMsg::SafetyBuffering(_)
         | EventMsg::RealtimeConversationStarted(_)

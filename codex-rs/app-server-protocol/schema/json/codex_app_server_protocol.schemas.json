@@ -18088,6 +18088,73 @@
             "type": "object"
           },
           {
+            "properties": {
+              "channel": {
+                "type": "string"
+              },
+              "createdAtMs": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "delivery": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/v2/ChannelDelivery"
+                  }
+                ],
+                "default": "surface_only"
+              },
+              "id": {
+                "type": "string"
+              },
+              "preview": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/v2/ChannelPriority"
+                  }
+                ],
+                "default": "normal"
+              },
+              "sender": {
+                "type": "string"
+              },
+              "senderKind": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/v2/ChannelSenderKind"
+                  }
+                ],
+                "default": "external"
+              },
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "channelMessage"
+                ],
+                "title": "ChannelMessageThreadItemType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "createdAtMs",
+              "id",
+              "sender",
+              "text",
+              "type"
+            ],
+            "title": "ChannelMessageThreadItem",
+            "type": "object"
+          },
+          {
             "description": "EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and may not match the concatenation of `PlanDelta` text.",
             "properties": {
               "id": {
@@ -18306,6 +18373,16 @@
                 "type": [
                   "string",
                   "null"
+                ]
+              },
+              "presentation": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/ToolResultPresentation"
+                  },
+                  {
+                    "type": "null"
+                  }
                 ]
               },
               "result": {
@@ -20180,6 +20257,106 @@
         "required": [
           "inputSchema",
           "name"
+        ],
+        "type": "object"
+      },
+      "ToolResultDisplay": {
+        "properties": {
+          "itemCount": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "severity": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summaryLines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "severity",
+          "status",
+          "summaryLines",
+          "title",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "ToolResultPresentation": {
+        "properties": {
+          "display": {
+            "$ref": "#/definitions/v2/ToolResultDisplay"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ToolResultRawRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "display",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ToolResultRawRef": {
+        "properties": {
+          "byteLen": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "rawRef": {
+            "type": "string"
+          },
+          "redaction": {
+            "type": "string"
+          },
+          "retention": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "byteLen",
+          "mime",
+          "rawRef",
+          "redaction",
+          "retention"
         ],
         "type": "object"
       },

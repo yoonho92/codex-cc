@@ -16,6 +16,7 @@ use crate::protocol::v2::McpToolCallError;
 use crate::protocol::v2::McpToolCallResult;
 use crate::protocol::v2::McpToolCallStatus;
 use crate::protocol::v2::ThreadItem;
+use crate::protocol::v2::ToolResultPresentation;
 use crate::protocol::v2::Turn;
 use crate::protocol::v2::TurnError as V2TurnError;
 use crate::protocol::v2::TurnError;
@@ -321,6 +322,7 @@ impl ThreadHistoryBuilder {
     pub fn handle_event(&mut self, event: &EventMsg) {
         match event {
             EventMsg::UserMessage(payload) => self.handle_user_message(payload),
+            EventMsg::ChannelMessage(payload) => self.handle_channel_message(payload),
             EventMsg::AgentMessage(payload) => self.handle_agent_message(
                 payload.message.clone(),
                 payload.phase.clone(),
@@ -480,6 +482,20 @@ impl ThreadHistoryBuilder {
         });
     }
 
+    fn handle_channel_message(&mut self, payload: &codex_protocol::protocol::ChannelMessageEvent) {
+        self.push_item_in_current_turn(ThreadItem::ChannelMessage {
+            id: payload.id.clone(),
+            channel: payload.channel.clone(),
+            sender: payload.sender.clone(),
+            sender_kind: payload.sender_kind.into(),
+            text: payload.text.clone(),
+            preview: payload.preview.clone(),
+            priority: payload.priority.into(),
+            delivery: payload.delivery.into(),
+            created_at_ms: payload.created_at_ms,
+        });
+    }
+
     fn handle_agent_message(
         &mut self,
         text: String,
@@ -609,6 +625,7 @@ impl ThreadHistoryBuilder {
             | codex_protocol::items::TurnItem::EnteredReviewMode(_)
             | codex_protocol::items::TurnItem::ExitedReviewMode(_) => true,
             codex_protocol::items::TurnItem::UserMessage(_)
+            | codex_protocol::items::TurnItem::ChannelMessage(_)
             | codex_protocol::items::TurnItem::AgentMessage(_)
             | codex_protocol::items::TurnItem::Reasoning(_)
             | codex_protocol::items::TurnItem::WebSearch(_)
@@ -780,6 +797,7 @@ impl ThreadHistoryBuilder {
             result: None,
             error: None,
             duration_ms: None,
+            presentation: None,
         };
         self.upsert_item_in_current_turn(item);
     }
@@ -833,6 +851,10 @@ impl ThreadHistoryBuilder {
             result,
             error,
             duration_ms,
+            presentation: payload
+                .presentation
+                .clone()
+                .map(ToolResultPresentation::from),
         };
         self.upsert_item_in_current_turn(item);
     }
@@ -2682,6 +2704,7 @@ mod tests {
                 plugin_id: None,
                 duration: Duration::from_millis(8),
                 result: Err("boom".into()),
+                presentation: None,
             }),
         ];
 
@@ -2736,6 +2759,7 @@ mod tests {
                     message: "boom".into(),
                 }),
                 duration_ms: Some(8),
+                presentation: None,
             }
         );
     }
@@ -2776,6 +2800,7 @@ mod tests {
                         "ui/resourceUri": "ui://widget/lookup.html"
                     })),
                 }),
+                presentation: None,
             }),
         ];
 
@@ -2815,6 +2840,7 @@ mod tests {
                 })),
                 error: None,
                 duration_ms: Some(8),
+                presentation: None,
             }
         );
     }

@@ -67,6 +67,9 @@ use codex_protocol::openai_models::InputModality;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::McpInvocation;
 use codex_protocol::protocol::ReviewDecision;
+use codex_protocol::protocol::ToolResultDisplay;
+use codex_protocol::protocol::ToolResultPresentation;
+use codex_protocol::protocol::ToolResultRawRef;
 use codex_protocol::request_user_input::RequestUserInputAnswer;
 use codex_protocol::request_user_input::RequestUserInputArgs;
 use codex_protocol::request_user_input::RequestUserInputQuestion;
@@ -901,6 +904,7 @@ async fn notify_mcp_tool_call_started(
         result: None,
         error: None,
         duration: None,
+        presentation: None,
     });
     sess.emit_turn_item_started(turn_context, &item).await;
 }
@@ -914,6 +918,7 @@ async fn notify_mcp_tool_call_completed(
     duration: Duration,
     result: Result<CallToolResult, String>,
 ) {
+    let presentation = mcp_tool_result_presentation(call_id, &invocation, duration, &result);
     let (status, result, error) = match result {
         Ok(result) if result.is_error.unwrap_or(false) => {
             (McpToolCallStatus::Failed, Some(result), None)
@@ -946,8 +951,177 @@ async fn notify_mcp_tool_call_completed(
         result,
         error,
         duration: Some(duration),
+        presentation: Some(presentation),
     });
     sess.emit_turn_item_completed(turn_context, item).await;
+}
+
+fn mcp_tool_result_presentation(
+    call_id: &str,
+    invocation: &McpInvocation,
+    duration: Duration,
+    result: &Result<CallToolResult, String>,
+) -> ToolResultPresentation {
+    let success = result
+        .as_ref()
+        .map(|result| !result.is_error.unwrap_or(false))
+        .unwrap_or(false);
+    let status = if success { "success" } else { "error" };
+    let mut summary_lines = vec![format!("Handled in {:.2}s.", duration.as_secs_f64())];
+    let mut item_count = None;
+    let mut truncated = false;
+
+    match result {
+        Ok(result) => {
+            if let Some(text) = first_text_content(&result.content) {
+                item_count = Some(result.content.len() as u64);
+                let (line, was_truncated) = truncate_for_presentation(text);
+                summary_lines.push(line);
+                truncated |= was_truncated;
+            } else if let Some(structured) = &result.structured_content
+                && !structured.is_null()
+            {
+                let (line, was_truncated) = summarize_json_value("structuredContent", structured);
+                summary_lines.push(line);
+                truncated |= was_truncated;
+            } else if result.content.is_empty() {
+                summary_lines.push("No content returned.".to_string());
+            } else {
+                item_count = Some(result.content.len() as u64);
+                summary_lines.push(format!(
+                    "{} content block{} returned.",
+                    result.content.len(),
+                    if result.content.len() == 1 { "" } else { "s" }
+                ));
+                for block in result.content.iter().take(3) {
+                    let (line, was_truncated) = summarize_mcp_content_block(block);
+                    summary_lines.push(line);
+                    truncated |= was_truncated;
+                }
+                if result.content.len() > 3 {
+                    summary_lines.push(format!(
+                        "{} additional block{} omitted from display.",
+                        result.content.len() - 3,
+                        if result.content.len() - 3 == 1 {
+                            ""
+                        } else {
+                            "s"
+                        }
+                    ));
+                    truncated = true;
+                }
+            }
+        }
+        Err(error) => {
+            let (line, was_truncated) = truncate_for_presentation(&format!("Error: {error}"));
+            summary_lines.push(line);
+            truncated |= was_truncated;
+        }
+    }
+
+    let raw_bytes = serde_json::to_vec(result).unwrap_or_default();
+    ToolResultPresentation {
+        version: 1,
+        display: ToolResultDisplay {
+            status: status.to_string(),
+            title: format!("{}.{}", invocation.server, invocation.tool),
+            summary_lines,
+            item_count,
+            truncated,
+            severity: if success { "info" } else { "error" }.to_string(),
+        },
+        raw: Some(ToolResultRawRef {
+            raw_ref: format!("mcp:{call_id}"),
+            byte_len: raw_bytes.len() as u64,
+            sha256: None,
+            mime: "application/json".to_string(),
+            redaction: "none".to_string(),
+            retention: "rollout".to_string(),
+        }),
+    }
+}
+
+fn first_text_content(content: &[JsonValue]) -> Option<&str> {
+    content
+        .iter()
+        .filter_map(|block| block.get("text").and_then(JsonValue::as_str))
+        .find(|text| !text.trim().is_empty())
+}
+
+fn summarize_mcp_content_block(block: &JsonValue) -> (String, bool) {
+    match block.get("type").and_then(JsonValue::as_str) {
+        Some("text") => {
+            let text = block.get("text").and_then(JsonValue::as_str).unwrap_or("");
+            let (text, truncated) = truncate_for_presentation(text);
+            (format!("text: {text}"), truncated)
+        }
+        Some("image") => ("image content returned.".to_string(), false),
+        Some("audio") => ("audio content returned.".to_string(), false),
+        Some("resource") => {
+            let uri = block
+                .get("resource")
+                .and_then(|resource| resource.get("uri"))
+                .and_then(JsonValue::as_str)
+                .unwrap_or("unknown");
+            (format!("resource: {uri}"), false)
+        }
+        Some("resource_link") => {
+            let uri = block
+                .get("uri")
+                .and_then(JsonValue::as_str)
+                .unwrap_or("unknown");
+            (format!("resource link: {uri}"), false)
+        }
+        Some(kind) => (format!("{kind} content returned."), false),
+        None => summarize_json_value("content", block),
+    }
+}
+
+fn summarize_json_value(label: &str, value: &JsonValue) -> (String, bool) {
+    match value {
+        JsonValue::Object(map) => {
+            let keys = map.keys().take(5).cloned().collect::<Vec<_>>().join(", ");
+            (
+                format!(
+                    "{label}: object with {} key{}{}{}",
+                    map.len(),
+                    if map.len() == 1 { "" } else { "s" },
+                    if keys.is_empty() { "" } else { ": " },
+                    keys
+                ),
+                map.len() > 5,
+            )
+        }
+        JsonValue::Array(items) => (
+            format!(
+                "{label}: array with {} item{}.",
+                items.len(),
+                if items.len() == 1 { "" } else { "s" }
+            ),
+            false,
+        ),
+        JsonValue::String(text) => {
+            let (text, truncated) = truncate_for_presentation(text);
+            (format!("{label}: {text}"), truncated)
+        }
+        other => {
+            let (text, truncated) = truncate_for_presentation(&other.to_string());
+            (format!("{label}: {text}"), truncated)
+        }
+    }
+}
+
+fn truncate_for_presentation(text: &str) -> (String, bool) {
+    const MAX_CHARS: usize = 180;
+    let single_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if single_line.chars().count() <= MAX_CHARS {
+        return (single_line, false);
+    }
+    let truncated = single_line
+        .chars()
+        .take(MAX_CHARS.saturating_sub(3))
+        .collect::<String>();
+    (format!("{truncated}..."), true)
 }
 
 struct McpAppUsageMetadata {

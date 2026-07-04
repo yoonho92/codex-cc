@@ -105,6 +105,30 @@
       ],
       "type": "object"
     },
+    "ChannelDelivery": {
+      "enum": [
+        "surface_only",
+        "surface_and_queue_next_turn"
+      ],
+      "type": "string"
+    },
+    "ChannelPriority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "type": "string"
+    },
+    "ChannelSenderKind": {
+      "enum": [
+        "external",
+        "user",
+        "agent",
+        "system"
+      ],
+      "type": "string"
+    },
     "CodexErrorInfo": {
       "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
       "oneOf": [
@@ -1323,6 +1347,73 @@
           "type": "object"
         },
         {
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "delivery": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ChannelDelivery"
+                }
+              ],
+              "default": "surface_only"
+            },
+            "id": {
+              "type": "string"
+            },
+            "preview": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "priority": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ChannelPriority"
+                }
+              ],
+              "default": "normal"
+            },
+            "sender": {
+              "type": "string"
+            },
+            "senderKind": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ChannelSenderKind"
+                }
+              ],
+              "default": "external"
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "channelMessage"
+              ],
+              "title": "ChannelMessageThreadItemType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "channel",
+            "createdAtMs",
+            "id",
+            "sender",
+            "text",
+            "type"
+          ],
+          "title": "ChannelMessageThreadItem",
+          "type": "object"
+        },
+        {
           "description": "EXPERIMENTAL - proposed plan item content. The completed plan item is authoritative and may not match the concatenation of `PlanDelta` text.",
           "properties": {
             "id": {
@@ -1541,6 +1632,16 @@
               "type": [
                 "string",
                 "null"
+              ]
+            },
+            "presentation": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ToolResultPresentation"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "result": {
@@ -2032,6 +2133,106 @@
           "type": "object"
         }
       ]
+    },
+    "ToolResultDisplay": {
+      "properties": {
+        "itemCount": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "severity": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summaryLines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "severity",
+        "status",
+        "summaryLines",
+        "title",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "ToolResultPresentation": {
+      "properties": {
+        "display": {
+          "$ref": "#/definitions/ToolResultDisplay"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ToolResultRawRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "display",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ToolResultRawRef": {
+      "properties": {
+        "byteLen": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "rawRef": {
+          "type": "string"
+        },
+        "redaction": {
+          "type": "string"
+        },
+        "retention": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "byteLen",
+        "mime",
+        "rawRef",
+        "redaction",
+        "retention"
+      ],
+      "type": "object"
     },
     "Turn": {
       "properties": {

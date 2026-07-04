@@ -2857,6 +2857,7 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
         result: None,
         error: None,
         duration: None,
+        presentation: None,
     });
 
     assert_eq!(
@@ -2880,6 +2881,7 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
             result: None,
             error: None,
             duration_ms: None,
+            presentation: None,
         }
     );
 
@@ -2904,6 +2906,7 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
         }),
         error: None,
         duration: Some(Duration::from_millis(42)),
+        presentation: None,
     });
 
     assert_eq!(
@@ -2924,6 +2927,7 @@ fn core_turn_item_into_thread_item_converts_supported_variants() {
             })),
             error: None,
             duration_ms: Some(42),
+            presentation: None,
         }
     );
 }
@@ -2949,6 +2953,7 @@ fn mcp_tool_call_app_context_serializes_connector_id() {
         result: None,
         error: None,
         duration_ms: None,
+        presentation: None,
     };
 
     assert_eq!(

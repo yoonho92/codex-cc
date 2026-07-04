@@ -10,24 +10,25 @@ use crate::update_versions::is_newer;
 use crate::update_versions::is_source_build_version;
 use crate::updates_cache::VersionInfo;
 use crate::updates_cache::read_version_info;
-use crate::updates_cache::version_filepath;
+use chrono::DateTime;
 use chrono::Duration;
 use chrono::Utc;
 use codex_login::default_client::create_client;
 use serde::Deserialize;
 use std::path::Path;
+use std::path::PathBuf;
 
-use crate::version::CODEX_CLI_VERSION;
-
-pub(crate) use crate::updates_cache::dismiss_version;
+const VERSION_FILENAME: &str = "version.json";
+const CODEX_CC_VERSION_FILENAME: &str = "codex-cc-version.json";
 
 pub fn get_upgrade_version(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    let action = update_action::get_update_action()?;
+    let current_version = action.current_version();
+    if !config.check_for_update_on_startup || is_source_build_version(current_version) {
         return None;
     }
 
-    let action = update_action::get_update_action();
-    let version_file = version_filepath(config);
+    let version_file = version_filepath(config, action);
     let info = read_version_info(&version_file).ok();
 
     if match &info {
@@ -45,7 +46,7 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
     }
 
     info.and_then(|info| {
-        if is_newer(&info.latest_version, CODEX_CLI_VERSION).unwrap_or(false) {
+        if is_newer(&info.latest_version, current_version).unwrap_or(false) {
             Some(info.latest_version)
         } else {
             None
@@ -67,9 +68,37 @@ struct HomebrewCaskInfo {
     version: String,
 }
 
-async fn check_for_update(version_file: &Path, action: Option<UpdateAction>) -> anyhow::Result<()> {
+#[derive(Deserialize, Debug, Clone)]
+struct CodexCcNpmPackageLatest {
+    version: String,
+}
+
+fn version_filepath(config: &Config, action: UpdateAction) -> PathBuf {
+    let filename = match action {
+        UpdateAction::CodexCcNpmGlobalLatest => CODEX_CC_VERSION_FILENAME,
+        UpdateAction::NpmGlobalLatest
+        | UpdateAction::BunGlobalLatest
+        | UpdateAction::PnpmGlobalLatest
+        | UpdateAction::BrewUpgrade
+        | UpdateAction::StandaloneUnix
+        | UpdateAction::StandaloneWindows => VERSION_FILENAME,
+    };
+    config.codex_home.join(filename).into_path_buf()
+}
+
+async fn check_for_update(version_file: &Path, action: UpdateAction) -> anyhow::Result<()> {
     let latest_version = match action {
-        Some(UpdateAction::BrewUpgrade) => {
+        UpdateAction::CodexCcNpmGlobalLatest => {
+            let CodexCcNpmPackageLatest { version } = create_client()
+                .get(crate::distribution::CODEX_CC_NPM_REGISTRY_LATEST_URL)
+                .send()
+                .await?
+                .error_for_status()?
+                .json::<CodexCcNpmPackageLatest>()
+                .await?;
+            version
+        }
+        UpdateAction::BrewUpgrade => {
             let HomebrewCaskInfo { version } = create_client()
                 .get(HOMEBREW_CASK_API_URL)
                 .send()
@@ -79,9 +108,9 @@ async fn check_for_update(version_file: &Path, action: Option<UpdateAction>) -> 
                 .await?;
             version
         }
-        Some(UpdateAction::NpmGlobalLatest)
-        | Some(UpdateAction::BunGlobalLatest)
-        | Some(UpdateAction::PnpmGlobalLatest) => {
+        UpdateAction::NpmGlobalLatest
+        | UpdateAction::BunGlobalLatest
+        | UpdateAction::PnpmGlobalLatest => {
             let latest_version = fetch_latest_github_release_version().await?;
             let package_info = create_client()
                 .get(npm_registry::PACKAGE_URL)
@@ -93,7 +122,7 @@ async fn check_for_update(version_file: &Path, action: Option<UpdateAction>) -> 
             npm_registry::ensure_version_ready(&package_info, &latest_version)?;
             latest_version
         }
-        Some(UpdateAction::StandaloneUnix) | Some(UpdateAction::StandaloneWindows) | None => {
+        UpdateAction::StandaloneUnix | UpdateAction::StandaloneWindows => {
             fetch_latest_github_release_version().await?
         }
     };
@@ -130,11 +159,12 @@ async fn fetch_latest_github_release_version() -> anyhow::Result<String> {
 /// Returns the latest version to show in a popup, if it should be shown.
 /// This respects the user's dismissal choice for the current latest version.
 pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    let action = update_action::get_update_action()?;
+    if !config.check_for_update_on_startup || is_source_build_version(action.current_version()) {
         return None;
     }
 
-    let version_file = version_filepath(config);
+    let version_file = version_filepath(config, action);
     let latest = get_upgrade_version(config)?;
     // If the user dismissed this exact version previously, do not show the popup.
     if let Ok(info) = read_version_info(&version_file)
@@ -143,4 +173,28 @@ pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
         return None;
     }
     Some(latest)
+}
+
+/// Persist a dismissal for the current latest version so we don't show
+/// the update popup again for this version.
+pub async fn dismiss_version(config: &Config, version: &str) -> anyhow::Result<()> {
+    let Some(action) = update_action::get_update_action() else {
+        return Ok(());
+    };
+    let version_file = version_filepath(config, action);
+    let mut info = match read_version_info(&version_file) {
+        Ok(info) => info,
+        Err(_) => VersionInfo {
+            latest_version: version.to_string(),
+            last_checked_at: DateTime::<Utc>::UNIX_EPOCH,
+            dismissed_version: None,
+        },
+    };
+    info.dismissed_version = Some(version.to_string());
+    let json_line = format!("{}\n", serde_json::to_string(&info)?);
+    if let Some(parent) = version_file.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::write(version_file, json_line).await?;
+    Ok(())
 }

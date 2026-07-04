@@ -205,6 +205,7 @@ impl ChatWidget {
             result,
             error,
             duration_ms,
+            presentation,
             ..
         } = item
         else {
@@ -236,12 +237,12 @@ impl ChatWidget {
             .as_mut()
             .and_then(|cell| cell.as_any_mut().downcast_mut::<McpToolCallCell>())
         {
-            Some(cell) if cell.call_id() == id => cell.complete(duration, result),
+            Some(cell) if cell.call_id() == id => cell.complete(duration, result, presentation),
             _ => {
                 self.flush_active_cell();
                 let mut cell =
                     history_cell::new_active_mcp_tool_call(id, invocation, self.config.animations);
-                let extra_cell = cell.complete(duration, result);
+                let extra_cell = cell.complete(duration, result, presentation);
                 self.transcript.active_cell = Some(Box::new(cell));
                 extra_cell
             }

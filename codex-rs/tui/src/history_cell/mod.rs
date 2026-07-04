@@ -57,6 +57,7 @@ use codex_app_server_protocol::McpServerStatus;
 use codex_app_server_protocol::McpServerStatusDetail;
 use codex_app_server_protocol::ToolRequestUserInputAnswer;
 use codex_app_server_protocol::ToolRequestUserInputQuestion;
+use codex_app_server_protocol::ToolResultPresentation;
 use codex_app_server_protocol::WebSearchAction;
 #[cfg(test)]
 use codex_config::types::McpServerTransportConfig;

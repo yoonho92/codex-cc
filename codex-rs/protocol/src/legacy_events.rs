@@ -2,6 +2,7 @@ use crate::ThreadId;
 use crate::dynamic_tools::DynamicToolCallRequest;
 use crate::items::AgentMessageContent;
 use crate::items::AgentMessageItem;
+use crate::items::ChannelMessageItem;
 use crate::items::CollabAgentTool;
 use crate::items::CollabAgentToolCallItem;
 use crate::items::CollabAgentToolCallStatus;
@@ -25,6 +26,7 @@ use crate::protocol::AgentMessageEvent;
 use crate::protocol::AgentReasoningEvent;
 use crate::protocol::AgentReasoningRawContentEvent;
 use crate::protocol::AgentStatus;
+use crate::protocol::ChannelMessageEvent;
 use crate::protocol::CollabAgentInteractionBeginEvent;
 use crate::protocol::CollabAgentInteractionEndEvent;
 use crate::protocol::CollabAgentSpawnBeginEvent;
@@ -106,6 +108,22 @@ impl AgentMessageItem {
                 }),
             })
             .collect()
+    }
+}
+
+impl ChannelMessageItem {
+    pub fn as_legacy_event(&self) -> EventMsg {
+        EventMsg::ChannelMessage(ChannelMessageEvent {
+            id: self.id.clone(),
+            channel: self.channel.clone(),
+            sender: self.sender.clone(),
+            sender_kind: self.sender_kind,
+            text: self.text.clone(),
+            preview: self.preview.clone(),
+            priority: self.priority,
+            delivery: self.delivery,
+            created_at_ms: self.created_at_ms,
+        })
     }
 }
 
@@ -503,6 +521,7 @@ impl TurnItem {
             TurnItem::UserMessage(item) => vec![item.as_legacy_event()],
             TurnItem::HookPrompt(_) => Vec::new(),
             TurnItem::AgentMessage(item) => item.as_legacy_events(),
+            TurnItem::ChannelMessage(item) => vec![item.as_legacy_event()],
             TurnItem::Plan(_) => Vec::new(),
             TurnItem::CommandExecution(_)
             | TurnItem::DynamicToolCall(_)

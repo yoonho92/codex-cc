@@ -1236,6 +1236,7 @@ fn append_resume_redaction_history(
                 is_error: Some(false),
                 meta: Some(json!({"secret":"meta"})),
             }),
+            presentation: None,
         }),
         EventMsg::ImageGenerationEnd(ImageGenerationEndEvent {
             call_id: "ig-1".to_string(),

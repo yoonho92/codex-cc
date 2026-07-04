@@ -7,6 +7,9 @@ import type { MessagePhase } from "../MessagePhase";
 import type { ReasoningEffort } from "../ReasoningEffort";
 import type { WebSearchItem } from "../WebSearchItem";
 import type { JsonValue } from "../serde_json/JsonValue";
+import type { ChannelDelivery } from "./ChannelDelivery";
+import type { ChannelPriority } from "./ChannelPriority";
+import type { ChannelSenderKind } from "./ChannelSenderKind";
 import type { CollabAgentState } from "./CollabAgentState";
 import type { CollabAgentTool } from "./CollabAgentTool";
 import type { CollabAgentToolCallStatus } from "./CollabAgentToolCallStatus";
@@ -24,9 +27,10 @@ import type { McpToolCallStatus } from "./McpToolCallStatus";
 import type { MemoryCitation } from "./MemoryCitation";
 import type { PatchApplyStatus } from "./PatchApplyStatus";
 import type { SubAgentActivityKind } from "./SubAgentActivityKind";
+import type { ToolResultPresentation } from "./ToolResultPresentation";
 import type { UserInput } from "./UserInput";
 
-export type ThreadItem = { "type": "userMessage", id: string, clientId: string | null, content: Array<UserInput>, } | { "type": "hookPrompt", id: string, fragments: Array<HookPromptFragment>, } | { "type": "agentMessage", id: string, text: string, phase: MessagePhase | null, memoryCitation: MemoryCitation | null, } | { "type": "plan", id: string, text: string, } | { "type": "reasoning", id: string, summary: Array<string>, content: Array<string>, } | { "type": "commandExecution", id: string,
+export type ThreadItem = { "type": "userMessage", id: string, clientId: string | null, content: Array<UserInput>, } | { "type": "hookPrompt", id: string, fragments: Array<HookPromptFragment>, } | { "type": "agentMessage", id: string, text: string, phase: MessagePhase | null, memoryCitation: MemoryCitation | null, } | { "type": "channelMessage", id: string, channel: string, sender: string, senderKind: ChannelSenderKind, text: string, preview?: string, priority: ChannelPriority, delivery: ChannelDelivery, createdAtMs: bigint, } | { "type": "plan", id: string, text: string, } | { "type": "reasoning", id: string, summary: Array<string>, content: Array<string>, } | { "type": "commandExecution", id: string,
 /**
  * The command to be executed.
  */
@@ -64,7 +68,7 @@ mcpAppResourceUri?: string, pluginId: string | null, result: McpToolCallResult |
 /**
  * The duration of the MCP tool call in milliseconds.
  */
-durationMs: number | null, } | { "type": "dynamicToolCall", id: string, namespace: string | null, tool: string, arguments: JsonValue, status: DynamicToolCallStatus, contentItems: Array<DynamicToolCallOutputContentItem> | null, success: boolean | null,
+durationMs: number | null, presentation?: ToolResultPresentation, } | { "type": "dynamicToolCall", id: string, namespace: string | null, tool: string, arguments: JsonValue, status: DynamicToolCallStatus, contentItems: Array<DynamicToolCallOutputContentItem> | null, success: boolean | null,
 /**
  * The duration of the dynamic tool call in milliseconds.
  */

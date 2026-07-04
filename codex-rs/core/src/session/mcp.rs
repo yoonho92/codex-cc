@@ -8,6 +8,10 @@ use codex_mcp::ElicitationReviewerHandle;
 use codex_mcp::McpLoggingNotificationHandler;
 use codex_protocol::capabilities::CapabilityRootLocation;
 use codex_protocol::config_types::ApprovalsReviewer;
+use codex_protocol::items::ChannelDelivery;
+use codex_protocol::items::ChannelMessageItem;
+use codex_protocol::items::ChannelPriority;
+use codex_protocol::items::ChannelSenderKind;
 use codex_protocol::mcp_approval_meta::APPROVAL_KIND_KEY as MCP_ELICITATION_APPROVAL_KIND_KEY;
 use codex_protocol::mcp_approval_meta::APPROVAL_KIND_MCP_TOOL_CALL as MCP_ELICITATION_APPROVAL_KIND_MCP_TOOL_CALL;
 use codex_protocol::mcp_approval_meta::APPROVAL_KIND_TOOL_SUGGESTION as MCP_ELICITATION_APPROVAL_KIND_TOOL_SUGGESTION;
@@ -23,6 +27,7 @@ use codex_protocol::mcp_approval_meta::TOOL_PARAMS_KEY as MCP_ELICITATION_TOOL_P
 use codex_protocol::mcp_approval_meta::TOOL_TITLE_KEY as MCP_ELICITATION_TOOL_TITLE_KEY;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::protocol::Event;
 use codex_rmcp_client::Elicitation;
 use rmcp::model::ElicitationAction;
 use rmcp::model::LoggingLevel;
@@ -227,11 +232,26 @@ impl Session {
         let Some(message) = channel_message_from_mcp_logging(&server_name, params) else {
             return;
         };
-        if !message.queue_next_turn {
+        let item = message.item;
+
+        if let Err(err) = self.try_ensure_rollout_materialized().await {
+            warn!("failed to materialize rollout for MCP channel message: {err}");
+            return;
+        }
+        self.send_event_raw(Event {
+            id: item.id.clone(),
+            msg: item.as_legacy_event(),
+        })
+        .await;
+        if let Err(err) = self.flush_rollout().await {
+            warn!("failed to flush MCP channel message rollout: {err}");
+        }
+
+        if item.delivery != ChannelDelivery::SurfaceAndQueueNextTurn {
             return;
         }
 
-        let response_item = channel_message_response_item(&message);
+        let response_item = channel_message_response_item(&item, message.model_text.as_deref());
         match self.try_start_turn_if_idle(vec![response_item]).await {
             Ok(()) => {}
             Err(err) => {
@@ -902,14 +922,8 @@ fn mcp_elicitation_auto_meta() -> serde_json::Value {
 }
 
 struct ParsedMcpChannelMessage {
-    id: String,
-    channel: String,
-    sender: String,
-    sender_kind: &'static str,
-    priority: &'static str,
-    created_at_ms: i64,
+    item: ChannelMessageItem,
     model_text: Option<String>,
-    queue_next_turn: bool,
 }
 
 fn channel_message_from_mcp_logging(
@@ -945,47 +959,50 @@ fn channel_message_from_mcp_logging(
 
     let delivery = object_string(&map, "delivery")
         .as_deref()
-        .map(parse_channel_delivery_queue_next_turn)
-        .unwrap_or(false);
+        .map(parse_channel_delivery)
+        .unwrap_or_default();
 
     Some(ParsedMcpChannelMessage {
-        id: object_string(&map, "id")
-            .or_else(|| object_string(&map, "itemId"))
-            .or_else(|| object_string(&map, "msg_id"))
-            .or_else(|| object_string(&map, "msgId"))
-            .unwrap_or_else(|| format!("mcp_channel_{}", Uuid::now_v7())),
-        channel: object_string(&map, "channel").unwrap_or_else(|| "mcp".to_string()),
-        sender: object_string(&map, "sender")
-            .or_else(|| object_string(&map, "from"))
-            .unwrap_or_else(|| server_name.to_string()),
-        sender_kind: object_string(&map, "senderKind")
-            .as_deref()
-            .map(parse_channel_sender_kind_label)
-            .unwrap_or("external"),
-        priority: object_string(&map, "priority")
-            .as_deref()
-            .map(parse_channel_priority_label)
-            .unwrap_or_else(|| priority_label_from_mcp_log_level(&level)),
-        created_at_ms: object_i64(&map, "createdAtMs")
-            .unwrap_or_else(|| Utc::now().timestamp_millis()),
+        item: ChannelMessageItem {
+            id: object_string(&map, "id")
+                .or_else(|| object_string(&map, "itemId"))
+                .or_else(|| object_string(&map, "msg_id"))
+                .or_else(|| object_string(&map, "msgId"))
+                .unwrap_or_else(|| format!("mcp_channel_{}", Uuid::now_v7())),
+            channel: object_string(&map, "channel").unwrap_or_else(|| "mcp".to_string()),
+            sender: object_string(&map, "sender")
+                .or_else(|| object_string(&map, "from"))
+                .unwrap_or_else(|| server_name.to_string()),
+            sender_kind: object_string(&map, "senderKind")
+                .as_deref()
+                .map(parse_channel_sender_kind)
+                .unwrap_or(ChannelSenderKind::External),
+            text,
+            preview: object_string(&map, "preview"),
+            priority: object_string(&map, "priority")
+                .as_deref()
+                .map(parse_channel_priority)
+                .unwrap_or_else(|| priority_from_mcp_log_level(&level)),
+            delivery,
+            created_at_ms: object_i64(&map, "createdAtMs")
+                .unwrap_or_else(|| Utc::now().timestamp_millis()),
+        },
         model_text: object_string(&map, "modelText").or_else(|| object_string(&map, "model_text")),
-        queue_next_turn: delivery,
     })
 }
 
-fn channel_message_response_item(message: &ParsedMcpChannelMessage) -> ResponseItem {
-    let model_text = message
-        .model_text
-        .as_deref()
-        .map(str::trim)
-        .filter(|text| !text.is_empty());
+fn channel_message_response_item(
+    item: &ChannelMessageItem,
+    model_text: Option<&str>,
+) -> ResponseItem {
+    let model_text = model_text.map(str::trim).filter(|text| !text.is_empty());
     let mut payload_json = serde_json::json!({
-        "id": &message.id,
-        "channel": &message.channel,
-        "sender": &message.sender,
-        "sender_kind": message.sender_kind,
-        "priority": message.priority,
-        "created_at_ms": message.created_at_ms,
+        "id": &item.id,
+        "channel": &item.channel,
+        "sender": &item.sender,
+        "sender_kind": channel_sender_kind_label(item.sender_kind),
+        "priority": channel_priority_label(item.priority),
+        "created_at_ms": item.created_at_ms,
         "has_model_text": model_text.is_some(),
     });
     if let Some(model_text) = model_text
@@ -1031,40 +1048,59 @@ fn object_i64(map: &Map<String, Value>, key: &str) -> Option<i64> {
     })
 }
 
-fn parse_channel_sender_kind_label(value: &str) -> &'static str {
+fn parse_channel_sender_kind(value: &str) -> ChannelSenderKind {
     match value {
-        "user" => "user",
-        "agent" => "agent",
-        "system" => "system",
-        _ => "external",
+        "user" => ChannelSenderKind::User,
+        "agent" => ChannelSenderKind::Agent,
+        "system" => ChannelSenderKind::System,
+        _ => ChannelSenderKind::External,
     }
 }
 
-fn parse_channel_priority_label(value: &str) -> &'static str {
+fn parse_channel_priority(value: &str) -> ChannelPriority {
     match value {
-        "low" => "low",
-        "high" | "critical" => "high",
-        _ => "normal",
+        "low" => ChannelPriority::Low,
+        "high" | "critical" => ChannelPriority::High,
+        _ => ChannelPriority::Normal,
     }
 }
 
-fn priority_label_from_mcp_log_level(level: &LoggingLevel) -> &'static str {
+fn priority_from_mcp_log_level(level: &LoggingLevel) -> ChannelPriority {
     match level {
         LoggingLevel::Emergency
         | LoggingLevel::Alert
         | LoggingLevel::Critical
         | LoggingLevel::Error
-        | LoggingLevel::Warning => "high",
-        LoggingLevel::Debug => "low",
-        LoggingLevel::Notice | LoggingLevel::Info => "normal",
+        | LoggingLevel::Warning => ChannelPriority::High,
+        LoggingLevel::Debug => ChannelPriority::Low,
+        LoggingLevel::Notice | LoggingLevel::Info => ChannelPriority::Normal,
     }
 }
 
-fn parse_channel_delivery_queue_next_turn(value: &str) -> bool {
-    matches!(
-        value,
-        "surfaceAndQueueNextTurn" | "surface_and_queue_next_turn"
-    )
+fn parse_channel_delivery(value: &str) -> ChannelDelivery {
+    match value {
+        "surfaceAndQueueNextTurn" | "surface_and_queue_next_turn" => {
+            ChannelDelivery::SurfaceAndQueueNextTurn
+        }
+        _ => ChannelDelivery::SurfaceOnly,
+    }
+}
+
+fn channel_sender_kind_label(kind: ChannelSenderKind) -> &'static str {
+    match kind {
+        ChannelSenderKind::External => "external",
+        ChannelSenderKind::User => "user",
+        ChannelSenderKind::Agent => "agent",
+        ChannelSenderKind::System => "system",
+    }
+}
+
+fn channel_priority_label(priority: ChannelPriority) -> &'static str {
+    match priority {
+        ChannelPriority::Low => "low",
+        ChannelPriority::Normal => "normal",
+        ChannelPriority::High => "high",
+    }
 }
 
 #[cfg(test)]

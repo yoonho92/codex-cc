@@ -43,6 +43,7 @@ pub enum TurnItem {
     UserMessage(UserMessageItem),
     HookPrompt(HookPromptItem),
     AgentMessage(AgentMessageItem),
+    ChannelMessage(ChannelMessageItem),
     Plan(PlanItem),
     Reasoning(ReasoningItem),
     CommandExecution(CommandExecutionItem),
@@ -80,6 +81,55 @@ pub struct UserMessageItem {
     #[ts(optional)]
     pub client_id: Option<String>,
     pub content: Vec<UserInput>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelSenderKind {
+    #[default]
+    External,
+    User,
+    Agent,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelPriority {
+    Low,
+    #[default]
+    Normal,
+    High,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum ChannelDelivery {
+    #[default]
+    SurfaceOnly,
+    SurfaceAndQueueNextTurn,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub struct ChannelMessageItem {
+    pub id: String,
+    pub channel: String,
+    pub sender: String,
+    pub sender_kind: ChannelSenderKind,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub preview: Option<String>,
+    #[serde(default)]
+    pub priority: ChannelPriority,
+    #[serde(default)]
+    pub delivery: ChannelDelivery,
+    pub created_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
@@ -386,6 +436,9 @@ pub struct McpToolCallItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string", optional)]
     pub duration: Option<Duration>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presentation: Option<ToolResultPresentation>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, TS, JsonSchema, PartialEq, Eq)]
@@ -627,6 +680,7 @@ impl TurnItem {
             TurnItem::UserMessage(item) => item.id.clone(),
             TurnItem::HookPrompt(item) => item.id.clone(),
             TurnItem::AgentMessage(item) => item.id.clone(),
+            TurnItem::ChannelMessage(item) => item.id.clone(),
             TurnItem::Plan(item) => item.id.clone(),
             TurnItem::Reasoning(item) => item.id.clone(),
             TurnItem::CommandExecution(item) => item.id.clone(),

@@ -979,6 +979,7 @@ async fn replayed_in_progress_mcp_tool_call_stays_active() {
             result: None,
             error: None,
             duration_ms: None,
+            presentation: None,
         },
         "turn-1".to_string(),
         ReplayKind::ThreadSnapshot,

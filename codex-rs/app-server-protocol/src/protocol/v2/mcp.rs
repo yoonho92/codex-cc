@@ -7,6 +7,9 @@ use codex_protocol::mcp::Resource as McpResource;
 pub use codex_protocol::mcp::ResourceContent as McpResourceContent;
 use codex_protocol::mcp::ResourceTemplate as McpResourceTemplate;
 use codex_protocol::mcp::Tool as McpTool;
+use codex_protocol::protocol::ToolResultDisplay as CoreToolResultDisplay;
+use codex_protocol::protocol::ToolResultPresentation as CoreToolResultPresentation;
+use codex_protocol::protocol::ToolResultRawRef as CoreToolResultRawRef;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
@@ -148,6 +151,45 @@ pub struct McpToolCallError {
     pub message: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ToolResultPresentation {
+    pub version: u32,
+    pub display: ToolResultDisplay,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub raw: Option<ToolResultRawRef>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ToolResultDisplay {
+    pub status: String,
+    pub title: String,
+    pub summary_lines: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub item_count: Option<u64>,
+    pub truncated: bool,
+    pub severity: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ToolResultRawRef {
+    pub raw_ref: String,
+    pub byte_len: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sha256: Option<String>,
+    pub mime: String,
+    pub redaction: String,
+    pub retention: String,
+}
+
 impl From<CoreMcpCallToolResult> for McpServerToolCallResponse {
     fn from(result: CoreMcpCallToolResult) -> Self {
         Self {
@@ -173,6 +215,42 @@ impl From<CoreMcpToolCallError> for McpToolCallError {
     fn from(error: CoreMcpToolCallError) -> Self {
         Self {
             message: error.message,
+        }
+    }
+}
+
+impl From<CoreToolResultPresentation> for ToolResultPresentation {
+    fn from(value: CoreToolResultPresentation) -> Self {
+        Self {
+            version: value.version,
+            display: value.display.into(),
+            raw: value.raw.map(Into::into),
+        }
+    }
+}
+
+impl From<CoreToolResultDisplay> for ToolResultDisplay {
+    fn from(value: CoreToolResultDisplay) -> Self {
+        Self {
+            status: value.status,
+            title: value.title,
+            summary_lines: value.summary_lines,
+            item_count: value.item_count,
+            truncated: value.truncated,
+            severity: value.severity,
+        }
+    }
+}
+
+impl From<CoreToolResultRawRef> for ToolResultRawRef {
+    fn from(value: CoreToolResultRawRef) -> Self {
+        Self {
+            raw_ref: value.raw_ref,
+            byte_len: value.byte_len,
+            sha256: value.sha256,
+            mime: value.mime,
+            redaction: value.redaction,
+            retention: value.retention,
         }
     }
 }

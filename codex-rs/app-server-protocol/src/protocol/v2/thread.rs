@@ -1330,6 +1330,70 @@ pub enum ChannelDelivery {
     SurfaceAndQueueNextTurn,
 }
 
+impl ChannelSenderKind {
+    pub fn to_core(self) -> codex_protocol::items::ChannelSenderKind {
+        match self {
+            Self::External => codex_protocol::items::ChannelSenderKind::External,
+            Self::User => codex_protocol::items::ChannelSenderKind::User,
+            Self::Agent => codex_protocol::items::ChannelSenderKind::Agent,
+            Self::System => codex_protocol::items::ChannelSenderKind::System,
+        }
+    }
+}
+
+impl From<codex_protocol::items::ChannelSenderKind> for ChannelSenderKind {
+    fn from(value: codex_protocol::items::ChannelSenderKind) -> Self {
+        match value {
+            codex_protocol::items::ChannelSenderKind::External => Self::External,
+            codex_protocol::items::ChannelSenderKind::User => Self::User,
+            codex_protocol::items::ChannelSenderKind::Agent => Self::Agent,
+            codex_protocol::items::ChannelSenderKind::System => Self::System,
+        }
+    }
+}
+
+impl ChannelPriority {
+    pub fn to_core(self) -> codex_protocol::items::ChannelPriority {
+        match self {
+            Self::Low => codex_protocol::items::ChannelPriority::Low,
+            Self::Normal => codex_protocol::items::ChannelPriority::Normal,
+            Self::High => codex_protocol::items::ChannelPriority::High,
+        }
+    }
+}
+
+impl From<codex_protocol::items::ChannelPriority> for ChannelPriority {
+    fn from(value: codex_protocol::items::ChannelPriority) -> Self {
+        match value {
+            codex_protocol::items::ChannelPriority::Low => Self::Low,
+            codex_protocol::items::ChannelPriority::Normal => Self::Normal,
+            codex_protocol::items::ChannelPriority::High => Self::High,
+        }
+    }
+}
+
+impl ChannelDelivery {
+    pub fn to_core(self) -> codex_protocol::items::ChannelDelivery {
+        match self {
+            Self::SurfaceOnly => codex_protocol::items::ChannelDelivery::SurfaceOnly,
+            Self::SurfaceAndQueueNextTurn => {
+                codex_protocol::items::ChannelDelivery::SurfaceAndQueueNextTurn
+            }
+        }
+    }
+}
+
+impl From<codex_protocol::items::ChannelDelivery> for ChannelDelivery {
+    fn from(value: codex_protocol::items::ChannelDelivery) -> Self {
+        match value {
+            codex_protocol::items::ChannelDelivery::SurfaceOnly => Self::SurfaceOnly,
+            codex_protocol::items::ChannelDelivery::SurfaceAndQueueNextTurn => {
+                Self::SurfaceAndQueueNextTurn
+            }
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

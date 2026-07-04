@@ -1,4 +1,7 @@
 use super::AdditionalPermissionProfile;
+use super::ChannelDelivery;
+use super::ChannelPriority;
+use super::ChannelSenderKind;
 use super::ExecPolicyAmendment;
 use super::McpToolCallError;
 use super::McpToolCallResult;
@@ -6,6 +9,7 @@ use super::NetworkApprovalContext;
 use super::NetworkApprovalProtocol;
 use super::NetworkPolicyAmendment;
 use super::RequestPermissionProfile;
+use super::ToolResultPresentation;
 use super::UserInput;
 use super::shared::v2_enum_from_core;
 use crate::protocol::item_builders::command_actions_for_path_uri;
@@ -249,6 +253,24 @@ pub enum ThreadItem {
     },
     #[serde(rename_all = "camelCase")]
     #[ts(rename_all = "camelCase")]
+    ChannelMessage {
+        id: String,
+        channel: String,
+        sender: String,
+        #[serde(default)]
+        sender_kind: ChannelSenderKind,
+        text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        preview: Option<String>,
+        #[serde(default)]
+        priority: ChannelPriority,
+        #[serde(default)]
+        delivery: ChannelDelivery,
+        created_at_ms: i64,
+    },
+    #[serde(rename_all = "camelCase")]
+    #[ts(rename_all = "camelCase")]
     /// EXPERIMENTAL - proposed plan item content. The completed plan item is
     /// authoritative and may not match the concatenation of `PlanDelta` text.
     Plan {
@@ -315,6 +337,9 @@ pub enum ThreadItem {
         /// The duration of the MCP tool call in milliseconds.
         #[ts(type = "number | null")]
         duration_ms: Option<i64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        presentation: Option<ToolResultPresentation>,
     },
     #[serde(rename_all = "camelCase")]
     #[ts(rename_all = "camelCase")]
@@ -421,6 +446,7 @@ impl ThreadItem {
             ThreadItem::UserMessage { id, .. }
             | ThreadItem::HookPrompt { id, .. }
             | ThreadItem::AgentMessage { id, .. }
+            | ThreadItem::ChannelMessage { id, .. }
             | ThreadItem::Plan { id, .. }
             | ThreadItem::Reasoning { id, .. }
             | ThreadItem::CommandExecution { id, .. }
@@ -831,6 +857,17 @@ impl From<CoreTurnItem> for ThreadItem {
                     memory_citation: agent.memory_citation.map(Into::into),
                 }
             }
+            CoreTurnItem::ChannelMessage(channel) => ThreadItem::ChannelMessage {
+                id: channel.id,
+                channel: channel.channel,
+                sender: channel.sender,
+                sender_kind: ChannelSenderKind::from(channel.sender_kind),
+                text: channel.text,
+                preview: channel.preview,
+                priority: ChannelPriority::from(channel.priority),
+                delivery: ChannelDelivery::from(channel.delivery),
+                created_at_ms: channel.created_at_ms,
+            },
             CoreTurnItem::Plan(plan) => ThreadItem::Plan {
                 id: plan.id,
                 text: plan.text,
@@ -965,6 +1002,7 @@ impl From<CoreTurnItem> for ThreadItem {
                     result: mcp.result.map(McpToolCallResult::from).map(Box::new),
                     error: mcp.error.map(McpToolCallError::from),
                     duration_ms,
+                    presentation: mcp.presentation.map(ToolResultPresentation::from),
                 }
             }
             CoreTurnItem::ContextCompaction(compaction) => {
