@@ -57,6 +57,14 @@ impl ChatWidget {
             ServerNotification::ThreadSettingsUpdated(notification) => {
                 self.on_thread_settings_updated(notification);
             }
+            ServerNotification::ChannelMessageAppended(notification) => {
+                let item = notification.item;
+                let display_text = item.preview.as_deref().unwrap_or(&item.text);
+                self.add_info_message(
+                    format!("[{}] {}: {}", item.channel, item.sender, display_text),
+                    /*hint*/ None,
+                );
+            }
             ServerNotification::TurnStarted(notification) => {
                 self.turn_lifecycle.last_turn_id = Some(notification.turn.id);
                 self.last_non_retry_error = None;

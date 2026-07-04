@@ -568,6 +568,99 @@
       ],
       "type": "object"
     },
+    "ChannelDelivery": {
+      "enum": [
+        "surface_only",
+        "surface_and_queue_next_turn"
+      ],
+      "type": "string"
+    },
+    "ChannelMessage": {
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delivery": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelDelivery"
+            }
+          ],
+          "default": "surface_only"
+        },
+        "id": {
+          "type": "string"
+        },
+        "preview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelPriority"
+            }
+          ],
+          "default": "normal"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "senderKind": {
+          "$ref": "#/definitions/ChannelSenderKind"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "createdAtMs",
+        "id",
+        "sender",
+        "senderKind",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ChannelMessageAppendedNotification": {
+      "properties": {
+        "item": {
+          "$ref": "#/definitions/ChannelMessage"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item",
+        "threadId"
+      ],
+      "type": "object"
+    },
+    "ChannelPriority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "type": "string"
+    },
+    "ChannelSenderKind": {
+      "enum": [
+        "external",
+        "user",
+        "agent",
+        "system"
+      ],
+      "type": "string"
+    },
     "CodexErrorInfo": {
       "description": "This translation layer make sure that we expose codex error code in camel case.\n\nWhen an upstream HTTP status is available (for example, from the Responses API or a provider), it is forwarded in `httpStatusCode` on the relevant `codexErrorInfo` variant.",
       "oneOf": [
@@ -5904,6 +5997,26 @@
         "params"
       ],
       "title": "Thread/tokenUsage/updatedNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/channel/appended"
+          ],
+          "title": "Thread/channel/appendedNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ChannelMessageAppendedNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/channel/appendedNotification",
       "type": "object"
     },
     {

@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ChannelDelivery": {
+      "enum": [
+        "surface_only",
+        "surface_and_queue_next_turn"
+      ],
+      "type": "string"
+    },
+    "ChannelMessage": {
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delivery": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelDelivery"
+            }
+          ],
+          "default": "surface_only"
+        },
+        "id": {
+          "type": "string"
+        },
+        "preview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelPriority"
+            }
+          ],
+          "default": "normal"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "senderKind": {
+          "$ref": "#/definitions/ChannelSenderKind"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "createdAtMs",
+        "id",
+        "sender",
+        "senderKind",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ChannelPriority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "type": "string"
+    },
+    "ChannelSenderKind": {
+      "enum": [
+        "external",
+        "user",
+        "agent",
+        "system"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "item": {
+      "$ref": "#/definitions/ChannelMessage"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "item",
+    "threadId"
+  ],
+  "title": "ChannelMessageAppendedNotification",
+  "type": "object"
+}

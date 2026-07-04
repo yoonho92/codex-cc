@@ -230,6 +230,30 @@
         }
       ]
     },
+    "ChannelDelivery": {
+      "enum": [
+        "surface_only",
+        "surface_and_queue_next_turn"
+      ],
+      "type": "string"
+    },
+    "ChannelPriority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "type": "string"
+    },
+    "ChannelSenderKind": {
+      "enum": [
+        "external",
+        "user",
+        "agent",
+        "system"
+      ],
+      "type": "string"
+    },
     "ClientInfo": {
       "properties": {
         "name": {
@@ -3530,6 +3554,74 @@
       },
       "required": [
         "threadId"
+      ],
+      "type": "object"
+    },
+    "ThreadChannelMessageInput": {
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "createdAtMs": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "delivery": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelDelivery"
+            }
+          ],
+          "default": "surface_only"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modelText": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "preview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelPriority"
+            }
+          ],
+          "default": "normal"
+        },
+        "sender": {
+          "type": "string"
+        },
+        "senderKind": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ChannelSenderKind"
+            }
+          ],
+          "default": "external"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "sender",
+        "text"
       ],
       "type": "object"
     },
