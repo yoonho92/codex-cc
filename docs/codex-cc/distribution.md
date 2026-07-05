@@ -54,13 +54,14 @@ The build script detects the installed upstream Codex version when
 - `CODEX_DISTRIBUTION=codex-cc` to suppress official update prompts and
   announcement tips in local fork builds.
 
-By default the build uses the custom Cargo `dist` profile and writes artifacts
-under `../codex-target`.
+By default the build uses Cargo's `release` profile and writes artifacts under
+`../codex-target`.
 
-For the smallest upstream-style binary:
+If a future upstream base defines a custom distribution profile, select it
+explicitly:
 
 ```bash
-CODEX_CHANNEL_BUILD_PROFILE=release scripts/build-meta-channel-codex.sh
+CODEX_CHANNEL_BUILD_PROFILE=dist scripts/build-meta-channel-codex.sh
 ```
 
 For fast local validation only:
