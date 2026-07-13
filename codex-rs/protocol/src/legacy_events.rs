@@ -511,6 +511,7 @@ impl McpToolCallItem {
             plugin_id: self.plugin_id.clone(),
             duration: self.duration?,
             result,
+            presentation: self.presentation.clone(),
         }))
     }
 }
